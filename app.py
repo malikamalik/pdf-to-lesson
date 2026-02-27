@@ -5,7 +5,7 @@ import uuid
 import json
 import zipfile
 import hashlib
-from lxml import etree
+import xml.etree.ElementTree as etree
 from pypdf import PdfReader
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
