@@ -3,7 +3,7 @@ import io
 import base64
 import uuid
 import json
-import pdfplumber
+from pypdf import PdfReader
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -279,33 +279,54 @@ def extract_pptx_images(filepath, max_images=50):
 # ==================== PDF EXTRACTION (kept for backwards compat) ====================
 
 def extract_pdf_text(filepath):
-    """Extract text from PDF using pdfplumber."""
+    """Extract text from PDF using pypdf."""
     full_text = []
-    with pdfplumber.open(filepath) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text = page.extract_text()
-            if text:
-                full_text.append(f"--- Page {i + 1} ---\n{text}")
+    reader = PdfReader(filepath)
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text()
+        if text:
+            full_text.append(f"--- Page {i + 1} ---\n{text}")
     return "\n\n".join(full_text)
 
 
 def extract_pdf_images(filepath, max_images=30):
-    """Extract images from PDF pages."""
+    """Extract embedded images from PDF pages using pypdf."""
     images = []
     try:
-        with pdfplumber.open(filepath) as pdf:
-            for i, page in enumerate(pdf.pages):
+        reader = PdfReader(filepath)
+        for i, page in enumerate(reader.pages):
+            if len(images) >= max_images:
+                break
+            if "/XObject" not in (page.get("/Resources") or {}):
+                continue
+            xobjects = page["/Resources"]["/XObject"].get_object()
+            for obj_name in xobjects:
                 if len(images) >= max_images:
                     break
-                pil_img = page.to_image(resolution=200).original
-                buf = io.BytesIO()
-                pil_img.save(buf, format="JPEG", quality=85)
-                b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-                images.append({
-                    "page": i + 1,
-                    "data_uri": f"data:image/jpeg;base64,{b64}",
-                    "desc": f"Page {i + 1} screenshot"
-                })
+                obj = xobjects[obj_name].get_object()
+                if obj.get("/Subtype") == "/Image":
+                    try:
+                        data = obj.get_data()
+                        # Determine image format
+                        filters = obj.get("/Filter", "")
+                        if isinstance(filters, list):
+                            filters = filters[0] if filters else ""
+                        if "/DCTDecode" in str(filters):
+                            mime = "image/jpeg"
+                        elif "/FlateDecode" in str(filters):
+                            mime = "image/png"
+                        else:
+                            mime = "image/png"
+                        if len(data) < 5000:
+                            continue  # skip tiny images
+                        b64 = base64.b64encode(data).decode("utf-8")
+                        images.append({
+                            "page": i + 1,
+                            "data_uri": f"data:{mime};base64,{b64}",
+                            "desc": f"Image from page {i + 1}"
+                        })
+                    except Exception:
+                        pass
     except Exception as e:
         print(f"PDF image extraction warning: {e}")
     return images
@@ -1265,22 +1286,21 @@ def extract_pdf_page_titles(filepath):
     """Extract page titles/first-lines from a PDF for the slide-by-slide image assignment UI."""
     pages = []
     try:
-        with pdfplumber.open(filepath) as pdf:
-            for i, page in enumerate(pdf.pages):
-                text = page.extract_text()
-                title = ""
-                if text:
-                    # Use first non-empty line as the title
-                    for line in text.split("\n"):
-                        line = line.strip()
-                        if line:
-                            title = line[:80]
-                            break
-                pages.append({
-                    "index": i,
-                    "title": title or f"Page {i + 1}",
-                    "slide_number": i + 1
-                })
+        reader = PdfReader(filepath)
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text()
+            title = ""
+            if text:
+                for line in text.split("\n"):
+                    line = line.strip()
+                    if line:
+                        title = line[:80]
+                        break
+            pages.append({
+                "index": i,
+                "title": title or f"Page {i + 1}",
+                "slide_number": i + 1
+            })
     except Exception as e:
         print(f"PDF title extraction warning: {e}")
     return pages
