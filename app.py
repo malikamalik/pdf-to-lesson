@@ -3,9 +3,10 @@ import io
 import base64
 import uuid
 import json
+import zipfile
+import hashlib
+from lxml import etree
 from pypdf import PdfReader
-from pptx import Presentation
-from pptx.enum.shapes import MSO_SHAPE_TYPE
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from anthropic import Anthropic
@@ -35,161 +36,242 @@ def get_file_ext(filename):
     return filename.rsplit(".", 1)[1].lower() if "." in filename else ""
 
 
-# ==================== PPTX EXTRACTION ====================
+# ==================== PPTX EXTRACTION (zipfile + lxml — no python-pptx/Pillow) ====================
+
+# XML namespaces used in OOXML (PPTX) files
+_NS = {
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+    "ct": "http://schemas.openxmlformats.org/package/2006/content-types",
+    "rel": "http://schemas.openxmlformats.org/package/2006/relationships",
+}
+EMU_PER_INCH = 914400
+
+
+def _pptx_slide_order(zf):
+    """Return ordered list of slide paths from presentation.xml."""
+    try:
+        pres = etree.parse(zf.open("ppt/presentation.xml"))
+        # Get slide rIds in order
+        sld_ids = pres.findall(".//p:sldIdLst/p:sldId", _NS)
+        sld_ids.sort(key=lambda e: int(e.get("id", "0")))
+        rids = [e.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                for e in sld_ids]
+        # Resolve rIds via presentation.xml.rels
+        rels_tree = etree.parse(zf.open("ppt/_rels/presentation.xml.rels"))
+        rid_map = {}
+        for rel in rels_tree.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+            rid_map[rel.get("Id")] = "ppt/" + rel.get("Target").lstrip("/")
+        return [rid_map[r] for r in rids if r in rid_map]
+    except Exception:
+        # Fallback: find slide files and sort numerically
+        slides = [n for n in zf.namelist() if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
+        import re as _re
+        slides.sort(key=lambda s: int(_re.search(r'(\d+)', s).group(1)) if _re.search(r'(\d+)', s) else 0)
+        return slides
+
+
+def _get_slide_texts(slide_tree):
+    """Extract all text runs from a slide XML tree, returns (title, all_texts)."""
+    texts = []
+    title = ""
+    for sp in slide_tree.iter("{http://schemas.openxmlformats.org/presentationml/2006/main}sp"):
+        # Check if this is a title shape
+        ph = sp.find(".//p:nvSpPr/p:nvPr/p:ph", _NS)
+        is_title = ph is not None and ph.get("type", "") in ("title", "ctrTitle", "")
+        shape_text_parts = []
+        for t_elem in sp.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t"):
+            if t_elem.text:
+                shape_text_parts.append(t_elem.text)
+        shape_text = "".join(shape_text_parts).strip()
+        if shape_text:
+            texts.append(shape_text)
+            if is_title and not title:
+                title = shape_text
+    # Also get text from tables
+    for tbl in slide_tree.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}tbl"):
+        for tr in tbl.findall("a:tr", _NS):
+            cells = []
+            for tc in tr.findall("a:tc", _NS):
+                cell_parts = []
+                for t_elem in tc.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t"):
+                    if t_elem.text:
+                        cell_parts.append(t_elem.text)
+                cell_text = "".join(cell_parts).strip()
+                if cell_text:
+                    cells.append(cell_text)
+            if cells:
+                texts.append("[Table row] " + " | ".join(cells))
+    return title, texts
+
+
+def _get_slide_notes(zf, slide_path):
+    """Extract speaker notes for a slide."""
+    # Notes are in ppt/notesSlides/notesSlideN.xml, linked via slide rels
+    slide_name = slide_path.split("/")[-1]
+    rels_path = slide_path.replace("slides/", "slides/_rels/") + ".rels"
+    try:
+        rels_tree = etree.parse(zf.open(rels_path))
+        for rel in rels_tree.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+            if "notesSlide" in rel.get("Type", ""):
+                notes_path = "ppt/slides/" + rel.get("Target")
+                # Normalize path (handles ../notesSlides/notesSlide1.xml)
+                import posixpath
+                notes_path = posixpath.normpath(notes_path)
+                notes_tree = etree.parse(zf.open(notes_path))
+                parts = []
+                for t_elem in notes_tree.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t"):
+                    if t_elem.text:
+                        parts.append(t_elem.text)
+                notes = "".join(parts).strip()
+                # Filter out slide number placeholders
+                if notes and not notes.isdigit():
+                    return notes
+    except Exception:
+        pass
+    return ""
+
 
 def extract_pptx_text(filepath):
     """Extract text from every slide in a PPTX, preserving slide structure."""
-    prs = Presentation(filepath)
     full_text = []
-    for i, slide in enumerate(prs.slides):
-        slide_texts = []
-        # Get slide title
-        if slide.shapes.title:
-            slide_texts.append(f"Title: {slide.shapes.title.text}")
-        # Get all text from shapes
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                for para in shape.text_frame.paragraphs:
-                    text = para.text.strip()
-                    if text:
-                        slide_texts.append(text)
-            # Get text from tables
-            if shape.has_table:
-                table = shape.table
-                for row in table.rows:
-                    row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
-                    if row_text:
-                        slide_texts.append(f"[Table row] {row_text}")
-        # Get speaker notes
-        if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
-            notes = slide.notes_slide.notes_text_frame.text.strip()
+    with zipfile.ZipFile(filepath, "r") as zf:
+        slide_paths = _pptx_slide_order(zf)
+        for i, sp in enumerate(slide_paths):
+            try:
+                slide_tree = etree.parse(zf.open(sp))
+            except Exception:
+                continue
+            title, texts = _get_slide_texts(slide_tree)
+            slide_texts = []
+            if title:
+                slide_texts.append(f"Title: {title}")
+            for t in texts:
+                if t != title:
+                    slide_texts.append(t)
+            notes = _get_slide_notes(zf, sp)
             if notes:
                 slide_texts.append(f"[Speaker Notes] {notes}")
-        if slide_texts:
-            full_text.append(f"--- Slide {i + 1} ---\n" + "\n".join(slide_texts))
+            if slide_texts:
+                full_text.append(f"--- Slide {i + 1} ---\n" + "\n".join(slide_texts))
     return "\n\n".join(full_text)
 
 
-def extract_pptx_images(filepath, max_images=50):
-    """Extract high-quality embedded images from PPTX with rich contextual metadata.
+def _get_slide_image_rels(zf, slide_path):
+    """Get rId→media-path map for images referenced by a slide."""
+    rels_path = slide_path.replace("slides/", "slides/_rels/") + ".rels"
+    rel_map = {}
+    try:
+        rels_tree = etree.parse(zf.open(rels_path))
+        for rel in rels_tree.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+            target = rel.get("Target", "")
+            if "/media/" in target or target.startswith("../media/"):
+                import posixpath
+                full = posixpath.normpath("ppt/slides/" + target)
+                rel_map[rel.get("Id")] = full
+    except Exception:
+        pass
+    return rel_map
 
-    For each image, captures: slide title, all text on the slide, shape name,
-    image dimensions, and classifies the image type (chart, diagram, photo, etc.)
-    so that Claude can place images intelligently in the lesson.
-    """
-    import hashlib
-    from pptx.util import Emu
-    prs = Presentation(filepath)
+
+def _mime_from_ext(path):
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    return {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "gif": "image/gif", "svg": "image/svg+xml", "webp": "image/webp",
+            "tiff": "image/tiff", "bmp": "image/bmp", "emf": "image/x-emf",
+            "wmf": "image/x-wmf"}.get(ext, "image/png")
+
+
+def extract_pptx_images(filepath, max_images=50):
+    """Extract images from PPTX with rich contextual metadata using zipfile+lxml."""
     raw_images = []
     seen_hashes = set()
-
-    # First pass: collect all image blobs with rich context
     all_blobs = []
-    for i, slide in enumerate(prs.slides):
-        # Get slide title
-        slide_title = ""
-        if slide.shapes.title:
-            slide_title = slide.shapes.title.text.strip()
 
-        # Get ALL text on this slide for context
-        slide_texts = []
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                for para in shape.text_frame.paragraphs:
-                    t = para.text.strip()
-                    if t:
-                        slide_texts.append(t)
-            if shape.has_table:
-                for row in shape.table.rows:
-                    row_text = " | ".join(c.text.strip() for c in row.cells if c.text.strip())
-                    if row_text:
-                        slide_texts.append(f"[Table] {row_text}")
+    with zipfile.ZipFile(filepath, "r") as zf:
+        slide_paths = _pptx_slide_order(zf)
+        media_cache = {}  # cache media file reads
 
-        # Fallback title from first meaningful text
-        if not slide_title and slide_texts:
-            for t in slide_texts:
-                if len(t) > 3:
-                    slide_title = t[:80]
-                    break
+        for i, sp in enumerate(slide_paths):
+            try:
+                slide_tree = etree.parse(zf.open(sp))
+            except Exception:
+                continue
 
-        slide_context = " | ".join(slide_texts[:10])  # first 10 text items for context
-        if len(slide_context) > 400:
-            slide_context = slide_context[:400] + "..."
+            title, texts = _get_slide_texts(slide_tree)
+            if not title and texts:
+                for t in texts:
+                    if len(t) > 3:
+                        title = t[:80]
+                        break
+            slide_context = " | ".join(texts[:10])
+            if len(slide_context) > 400:
+                slide_context = slide_context[:400] + "..."
 
-        def process_shape(shape, slide_idx, title, context):
-            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+            rel_map = _get_slide_image_rels(zf, sp)
+
+            # Find all picture shapes (p:pic) in the slide
+            for pic in slide_tree.iter("{http://schemas.openxmlformats.org/presentationml/2006/main}pic"):
                 try:
-                    image = shape.image
-                    blob = image.blob
-                    # Get image dimensions in the slide (EMUs -> inches)
-                    w_inches = shape.width / 914400 if shape.width else 0
-                    h_inches = shape.height / 914400 if shape.height else 0
-                    # Try to get alt text from XML
-                    alt_text = ""
-                    try:
-                        nsmap = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main",
-                                 "p": "http://schemas.openxmlformats.org/presentationml/2006/main"}
-                        cNvPr = shape._element.find('.//p:nvPicPr/p:cNvPr', nsmap)
-                        if cNvPr is None:
-                            cNvPr = shape._element.find('.//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetml}cNvPr')
-                        if cNvPr is not None:
-                            alt_text = cNvPr.get("descr", "") or ""
-                    except Exception:
-                        pass
+                    # Get image relationship ID — blipFill is under p: namespace
+                    blip = pic.find("p:blipFill/a:blip", _NS)
+                    if blip is None:
+                        # Fallback: search anywhere under pic
+                        blip = pic.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip")
+                    if blip is None:
+                        continue
+                    rid = blip.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+                    if not rid or rid not in rel_map:
+                        continue
+                    media_path = rel_map[rid]
+
+                    # Read the image blob
+                    if media_path not in media_cache:
+                        try:
+                            media_cache[media_path] = zf.read(media_path)
+                        except KeyError:
+                            continue
+                    blob = media_cache[media_path]
+
+                    # Get dimensions (EMU) — spPr is under p: namespace, xfrm/ext under a:
+                    ext_elem = pic.find("p:spPr/a:xfrm/a:ext", _NS)
+                    if ext_elem is None:
+                        ext_elem = pic.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}ext")
+                    w_inches = h_inches = 0.0
+                    if ext_elem is not None:
+                        w_inches = round(int(ext_elem.get("cx", 0)) / EMU_PER_INCH, 1)
+                        h_inches = round(int(ext_elem.get("cy", 0)) / EMU_PER_INCH, 1)
+
+                    # Get alt text / shape name — cNvPr is under p:nvPicPr/p:cNvPr
+                    cNvPr = pic.find("p:nvPicPr/p:cNvPr", _NS)
+                    alt_text = cNvPr.get("descr", "") if cNvPr is not None else ""
+                    shape_name = cNvPr.get("name", "") if cNvPr is not None else ""
 
                     all_blobs.append({
                         "blob": blob,
                         "hash": hashlib.md5(blob).hexdigest(),
                         "size": len(blob),
-                        "content_type": image.content_type,
-                        "slide": slide_idx + 1,
+                        "content_type": _mime_from_ext(media_path),
+                        "slide": i + 1,
                         "slide_title": title,
-                        "slide_context": context,
-                        "shape_name": shape.name or "",
+                        "slide_context": slide_context,
+                        "shape_name": shape_name,
                         "alt_text": alt_text,
-                        "width_inches": round(w_inches, 1),
-                        "height_inches": round(h_inches, 1),
+                        "width_inches": w_inches,
+                        "height_inches": h_inches,
                     })
                 except Exception:
                     pass
-            elif shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-                try:
-                    for sub in shape.shapes:
-                        if sub.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                            try:
-                                image = sub.image
-                                blob = image.blob
-                                w_inches = sub.width / 914400 if sub.width else 0
-                                h_inches = sub.height / 914400 if sub.height else 0
-                                all_blobs.append({
-                                    "blob": blob,
-                                    "hash": hashlib.md5(blob).hexdigest(),
-                                    "size": len(blob),
-                                    "content_type": image.content_type,
-                                    "slide": slide_idx + 1,
-                                    "slide_title": title,
-                                    "slide_context": context,
-                                    "shape_name": sub.name or "",
-                                    "alt_text": "",
-                                    "width_inches": round(w_inches, 1),
-                                    "height_inches": round(h_inches, 1),
-                                })
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
 
-        for shape in slide.shapes:
-            process_shape(shape, i, slide_title, slide_context)
-
-    # Count how often each hash appears (to identify repeated decorative elements)
+    # Count repeats
     hash_counts = {}
     for b in all_blobs:
         hash_counts[b["hash"]] = hash_counts.get(b["hash"], 0) + 1
 
-    # Second pass: filter and keep only meaningful images
-    MIN_SIZE = 15_000       # Skip images smaller than 15KB (icons, bullets)
-    MAX_REPEATS = 3         # Skip images that appear more than 3 times (decorative)
+    # Filter and keep meaningful images
+    MIN_SIZE = 15_000
+    MAX_REPEATS = 3
 
     for b in all_blobs:
         if len(raw_images) >= max_images:
@@ -200,13 +282,10 @@ def extract_pptx_images(filepath, max_images=50):
             continue
         if b["hash"] in seen_hashes:
             continue
-        # Skip decorative gradients/rasterized backgrounds
         alt_lower = (b.get("alt_text") or "").lower()
         if any(skip in alt_lower for skip in ["rasterized", "gradient", "background", "/tmp/"]):
             continue
-        # Skip very wide/thin banners (likely decorative bars)
-        w_in = b["width_inches"]
-        h_in = b["height_inches"]
+        w_in, h_in = b["width_inches"], b["height_inches"]
         if h_in > 0 and w_in / h_in > 5:
             continue
         seen_hashes.add(b["hash"])
@@ -214,63 +293,40 @@ def extract_pptx_images(filepath, max_images=50):
         b64 = base64.b64encode(b["blob"]).decode("utf-8")
         data_uri = f"data:{b['content_type']};base64,{b64}"
 
-        # Classify image type from shape name and dimensions
-        shape_name_lower = b["shape_name"].lower()
+        # Classify image type
+        sn = b["shape_name"].lower()
         w, h = b["width_inches"], b["height_inches"]
         area = w * h
+        if "chart" in sn: img_type = "chart/graph"
+        elif "diagram" in sn: img_type = "diagram"
+        elif "screenshot" in sn: img_type = "screenshot"
+        elif "logo" in sn: img_type = "logo"
+        elif "photo" in sn or "picture" in sn: img_type = "photo"
+        elif area > 20: img_type = "large illustration/diagram"
+        elif area > 8: img_type = "illustration"
+        elif w > 1.5 * h + 1: img_type = "banner/wide graphic"
+        elif h > 1.5 * w + 1: img_type = "tall graphic/infographic"
+        else: img_type = "image"
 
-        if "chart" in shape_name_lower:
-            img_type = "chart/graph"
-        elif "diagram" in shape_name_lower:
-            img_type = "diagram"
-        elif "screenshot" in shape_name_lower:
-            img_type = "screenshot"
-        elif "logo" in shape_name_lower:
-            img_type = "logo"
-        elif "photo" in shape_name_lower or "picture" in shape_name_lower:
-            img_type = "photo"
-        elif area > 20:
-            img_type = "large illustration/diagram"
-        elif area > 8:
-            img_type = "illustration"
-        elif w > 1.5 * h + 1:
-            img_type = "banner/wide graphic"
-        elif h > 1.5 * w + 1:
-            img_type = "tall graphic/infographic"
-        else:
-            img_type = "image"
-
-        # Build a rich description
-        desc_parts = []
-        desc_parts.append(f"From slide {b['slide']}")
+        desc_parts = [f"From slide {b['slide']}"]
         if b["slide_title"]:
-            desc_parts.append(f"titled \"{b['slide_title']}\"")
-        desc_parts.append(f"[{img_type}, {w}\"x{h}\"]")
+            desc_parts.append(f'titled "{b["slide_title"]}"')
+        desc_parts.append(f'[{img_type}, {w}"x{h}"]')
         if b["alt_text"]:
-            desc_parts.append(f"Alt text: \"{b['alt_text']}\"")
+            desc_parts.append(f'Alt text: "{b["alt_text"]}"')
         if b["shape_name"] and b["shape_name"] not in ("Picture", "Image"):
-            desc_parts.append(f"Shape: \"{b['shape_name']}\"")
+            desc_parts.append(f'Shape: "{b["shape_name"]}"')
         if b["slide_context"]:
-            ctx = b["slide_context"][:150]
-            desc_parts.append(f"Context: {ctx}")
-
-        desc = " — ".join(desc_parts)
+            desc_parts.append(f"Context: {b['slide_context'][:150]}")
 
         raw_images.append({
-            "page": b["slide"],
-            "data_uri": data_uri,
-            "desc": desc,
-            "source": "pptx",
-            "size": b["size"],
-            "slide_title": b["slide_title"],
-            "slide_context": b["slide_context"],
-            "img_type": img_type,
+            "page": b["slide"], "data_uri": data_uri, "desc": " — ".join(desc_parts),
+            "source": "pptx", "size": b["size"], "slide_title": b["slide_title"],
+            "slide_context": b["slide_context"], "img_type": img_type,
         })
 
-    # Sort by slide number, then by size (larger = more important) within same slide
     raw_images.sort(key=lambda x: (x["page"], -x["size"]))
-
-    print(f"  PPTX image extraction: {len(all_blobs)} total → {len(raw_images)} kept (filtered {len(all_blobs) - len(raw_images)} duplicates/icons)")
+    print(f"  PPTX image extraction: {len(all_blobs)} total → {len(raw_images)} kept")
     for idx, img in enumerate(raw_images):
         print(f"    [{idx}] {img['desc'][:120]}")
     return raw_images
@@ -1257,28 +1313,25 @@ showWelcome();
 
 def extract_pptx_slide_titles(filepath):
     """Extract slide titles from a PPTX file for the slide-by-slide image assignment UI."""
-    prs = Presentation(filepath)
     slides = []
-    for i, slide in enumerate(prs.slides):
-        title = ""
-        if slide.shapes.title:
-            title = slide.shapes.title.text.strip()
-        if not title:
-            # Try to get first text from any shape
-            for shape in slide.shapes:
-                if shape.has_text_frame:
-                    for para in shape.text_frame.paragraphs:
-                        text = para.text.strip()
-                        if text:
-                            title = text[:80]
+    with zipfile.ZipFile(filepath, "r") as zf:
+        slide_paths = _pptx_slide_order(zf)
+        for i, sp in enumerate(slide_paths):
+            try:
+                slide_tree = etree.parse(zf.open(sp))
+                title, texts = _get_slide_texts(slide_tree)
+                if not title and texts:
+                    for t in texts:
+                        if len(t) > 3:
+                            title = t[:80]
                             break
-                if title:
-                    break
-        slides.append({
-            "index": i,
-            "title": title or f"Slide {i + 1}",
-            "slide_number": i + 1
-        })
+            except Exception:
+                title = ""
+            slides.append({
+                "index": i,
+                "title": title or f"Slide {i + 1}",
+                "slide_number": i + 1
+            })
     return slides
 
 
