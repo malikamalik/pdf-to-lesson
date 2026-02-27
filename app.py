@@ -809,6 +809,9 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 
 .edit-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s}}
 body[data-edit] .edit-btn{{display:flex}}
+.dl-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s}}
+.dl-btn:hover{{border-color:var(--b);color:var(--b)}}
+body[data-edit] .dl-btn{{display:flex}}
 .edit-btn:hover{{border-color:var(--b);color:var(--b)}}
 .edit-panel{{position:fixed;inset:0;z-index:400;display:none}}
 .edit-panel.open{{display:flex}}
@@ -873,8 +876,8 @@ body[data-edit] .narr-regen{{display:inline-flex}}
 <div class="app" id="app"></div>
 <script>
 // ── DATA ──
-const slidesData={slides_json};
-const IMAGES={images_json};
+/*SDATA*/const slidesData={slides_json};/*EDATA*/
+/*SIMGS*/const IMAGES={images_json};/*EIMGS*/
 const COURSE_TITLE=`{course_title}`;
 
 // ── SVG CONSTANTS ──
@@ -1150,7 +1153,7 @@ function R(){{
   let nav='';cats.forEach(c=>{{nav+=`<div class="dw-c">${{c}}</div>`;S.filter(x=>x.cat===c).forEach(x=>{{const idx=S.indexOf(x);const ico=x.t.startsWith('Quick')?'\\u2726':'\\u2022';nav+=`<button class="dw-i${{idx===cur?' on':''}}" onclick="go(${{idx}});cN()"><span class="dw-ico">${{ico}}</span>${{x.t}}</button>`}})}});
 
   document.getElementById('app').innerHTML=`
-    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
+    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><button class="dl-btn" onclick="downloadWithEdits()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
     <div class="bar"><div class="bar-f" style="width:${{pct}}%"></div></div>
     <div class="ov" id="ov" onclick="cN()"></div><div class="dw" id="dw"><div class="dw-h">Lessons</div>${{nav}}</div>
     <div class="ct ${{cur>=prevCur?'entering':'entering-back'}}" id="cn"><h1 class="an">${{s.t}}</h1>${{s.s?`<p class="sub an">${{s.s}}</p>`:'<div style="height:20px"></div>'}}\n${{s.r()}}</div>
@@ -1255,6 +1258,35 @@ function showWelcome(){{
 }}
 function startListenMode(){{listenMode=true;unlockAudio();closeWelcome();speakSlide()}}
 function closeWelcome(){{const m=document.getElementById('welcome-modal');if(m){{m.style.opacity='0';m.style.transition='opacity .25s';setTimeout(()=>m.remove(),260)}}}}
+
+// ── DOWNLOAD WITH EDITS ──
+function downloadWithEdits(){{
+  let html='<!DOCTYPE html>\\n'+document.documentElement.outerHTML;
+  // Replace slidesData with current edited version
+  const sd1=html.indexOf('/*SDATA*/');
+  const sd2=html.indexOf('/*EDATA*/');
+  if(sd1!==-1&&sd2!==-1){{
+    html=html.substring(0,sd1)+'/*SDATA*/const slidesData='+JSON.stringify(slidesData)+';/*EDATA*/'+html.substring(sd2+9);
+  }}
+  // Replace IMAGES with current version (includes newly added images)
+  const im1=html.indexOf('/*SIMGS*/');
+  const im2=html.indexOf('/*EIMGS*/');
+  if(im1!==-1&&im2!==-1){{
+    html=html.substring(0,im1)+'/*SIMGS*/const IMAGES='+JSON.stringify(IMAGES)+';/*EIMGS*/'+html.substring(im2+9);
+  }}
+  // Strip edit mode so downloaded file is clean
+  html=html.replace(' data-edit="1"','');
+  // Download
+  const blob=new Blob([html],{{type:'text/html'}});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=(COURSE_TITLE||'lesson').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\\s+/g,'_')+'.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}}
 
 // ── EDIT MODE ──
 function openEdit(){{
