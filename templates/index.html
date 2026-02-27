@@ -788,6 +788,75 @@
   /* HIDDEN HELPER */
   .hidden { display: none !important; }
 
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 32px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    max-width: 360px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .tab-btn:not(:last-child) { border-right: 1px solid var(--border); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: var(--surface);
+  }
+  .tab-btn:hover:not(.active) {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .tab-btn svg { width: 14px; height: 14px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* HTML UPLOAD TAB */
+  .html-dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+    position: relative;
+  }
+  .html-dropzone:hover, .html-dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .html-dropzone.has-file {
+    border-color: var(--success);
+    background: var(--success-bg);
+    border-style: solid;
+  }
+  .html-result {
+    display: none;
+    margin-top: 20px;
+    text-align: center;
+  }
+  .html-result.visible { display: block; }
+
   @media (max-width: 600px) {
     .hero h1 { font-size: 22px; }
     .main { padding: 24px 16px 60px; }
@@ -795,6 +864,7 @@
     .step-line { width: 28px; }
     .features { grid-template-columns: 1fr 1fr; }
     .slide-title { font-size: 12px; }
+    .tab-bar { max-width: 100%; }
   }
 </style>
 </head>
@@ -818,6 +888,21 @@
     <h1>Turn any document into<br>an interactive lesson</h1>
     <p>Upload a PPTX or PDF and generate a self-contained, gamified HTML lesson with quizzes, activities, and progress tracking.</p>
   </div>
+
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabCreate" onclick="switchTab('create')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Create
+    </button>
+    <button class="tab-btn" id="tabEdit" onclick="switchTab('edit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit HTML
+    </button>
+  </div>
+
+  <!-- ====== CREATE TAB ====== -->
+  <div class="tab-content active" id="createTab">
 
   <!-- STEPS BAR -->
   <div class="steps-bar">
@@ -1021,6 +1106,70 @@
       <div class="f-desc">Single HTML file, no dependencies, works offline</div>
     </div>
   </div>
+
+  </div><!-- end createTab -->
+
+  <!-- ====== EDIT HTML TAB ====== -->
+  <div class="tab-content" id="editTab">
+    <div class="section highlight">
+      <div class="section-label">Upload an HTML lesson to edit</div>
+      <div class="html-dropzone" id="htmlDropzone">
+        <div class="dropzone-icon" id="htmlDropzoneIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </div>
+        <h3 id="htmlDropzoneTitle">Drop your HTML lesson file here</h3>
+        <p id="htmlDropzoneDesc">HTML or HTM file &mdash; generated lesson files</p>
+        <input type="file" accept=".html,.htm" id="htmlFileInput">
+        <div class="file-info" id="htmlFileInfo" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span id="htmlFileName"></span>
+          <button class="remove-file" id="htmlRemoveFile">Remove</button>
+        </div>
+      </div>
+
+      <div id="htmlUploadProgress" style="display:none;margin-top:16px">
+        <div class="progress-status">
+          <div class="spinner"></div>
+          <span>Uploading...</span>
+        </div>
+      </div>
+
+      <div class="html-result" id="htmlResult">
+        <div class="result-icon">&#9998;</div>
+        <h3>Ready to edit</h3>
+        <p>Your HTML lesson has been loaded. Click to preview and edit.</p>
+        <div class="result-actions" style="margin-top:16px">
+          <a class="btn-preview" id="htmlPreviewBtn" target="_blank">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            Open &amp; Edit
+          </a>
+          <a class="btn-download" id="htmlDownloadBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download
+          </a>
+          <button class="btn-new" onclick="resetHtmlUpload()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            New
+          </button>
+        </div>
+      </div>
+
+      <!-- Inline preview for uploaded HTML -->
+      <div class="preview-frame-wrap" id="htmlPreviewWrap">
+        <div class="preview-toolbar">
+          <div class="preview-dot r"></div>
+          <div class="preview-dot y"></div>
+          <div class="preview-dot g"></div>
+          <span class="preview-title" id="htmlPreviewTitle">Lesson Editor</span>
+        </div>
+        <iframe class="preview-frame" id="htmlPreviewFrame"></iframe>
+      </div>
+    </div>
+  </div><!-- end editTab -->
+
 </div>
 
 <script>
@@ -1573,6 +1722,98 @@ function resetAll() {
   convertBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate lesson';
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== TAB SWITCHING =====
+function switchTab(tab) {
+  document.getElementById('tabCreate').classList.toggle('active', tab === 'create');
+  document.getElementById('tabEdit').classList.toggle('active', tab === 'edit');
+  document.getElementById('createTab').classList.toggle('active', tab === 'create');
+  document.getElementById('editTab').classList.toggle('active', tab === 'edit');
+}
+
+// ===== HTML UPLOAD TAB =====
+const htmlFileInput = document.getElementById('htmlFileInput');
+const htmlDropzone = document.getElementById('htmlDropzone');
+
+htmlFileInput.addEventListener('change', function(e) {
+  if (e.target.files.length > 0) selectHtmlFile(e.target.files[0]);
+});
+
+htmlDropzone.addEventListener('dragover', function(e) { e.preventDefault(); htmlDropzone.classList.add('dragover'); });
+htmlDropzone.addEventListener('dragleave', function() { htmlDropzone.classList.remove('dragover'); });
+htmlDropzone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  htmlDropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.html') || name.endsWith('.htm')) selectHtmlFile(file);
+  }
+});
+
+let selectedHtmlFile = null;
+
+function selectHtmlFile(file) {
+  selectedHtmlFile = file;
+  htmlDropzone.classList.add('has-file');
+  document.getElementById('htmlDropzoneTitle').textContent = 'HTML file selected';
+  document.getElementById('htmlDropzoneDesc').style.display = 'none';
+  document.getElementById('htmlFileInfo').style.display = 'flex';
+  document.getElementById('htmlFileName').textContent = file.name + ' (' + formatSize(file.size) + ')';
+
+  // Auto-upload
+  uploadHtmlFile(file);
+}
+
+document.getElementById('htmlRemoveFile').addEventListener('click', function(e) {
+  e.stopPropagation();
+  resetHtmlUpload();
+});
+
+async function uploadHtmlFile(file) {
+  const progress = document.getElementById('htmlUploadProgress');
+  progress.style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/upload-html', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Upload failed');
+
+    progress.style.display = 'none';
+
+    // Show result
+    const result = document.getElementById('htmlResult');
+    result.classList.add('visible');
+
+    document.getElementById('htmlPreviewBtn').href = data.preview_url;
+    document.getElementById('htmlDownloadBtn').href = data.download_url;
+
+    // Show inline preview
+    const wrap = document.getElementById('htmlPreviewWrap');
+    wrap.classList.add('visible');
+    document.getElementById('htmlPreviewFrame').src = data.preview_url;
+    document.getElementById('htmlPreviewTitle').textContent = file.name + ' — Editor';
+
+  } catch (err) {
+    progress.style.display = 'none';
+    alert('Upload failed: ' + err.message);
+  }
+}
+
+function resetHtmlUpload() {
+  selectedHtmlFile = null;
+  htmlFileInput.value = '';
+  htmlDropzone.classList.remove('has-file');
+  document.getElementById('htmlDropzoneTitle').textContent = 'Drop your HTML lesson file here';
+  document.getElementById('htmlDropzoneDesc').style.display = '';
+  document.getElementById('htmlFileInfo').style.display = 'none';
+  document.getElementById('htmlResult').classList.remove('visible');
+  document.getElementById('htmlPreviewWrap').classList.remove('visible');
+  document.getElementById('htmlUploadProgress').style.display = 'none';
 }
 </script>
 </body>

@@ -807,7 +807,8 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 .listen-badge.off .eq i{{animation:none;height:3px}}
 .listen-badge.off{{background:var(--s1);border-color:var(--s2);color:var(--c3)}}
 
-.edit-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s}}
+.edit-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s}}
+body[data-edit] .edit-btn{{display:flex}}
 .edit-btn:hover{{border-color:var(--b);color:var(--b)}}
 .edit-panel{{position:fixed;inset:0;z-index:400;display:none}}
 .edit-panel.open{{display:flex}}
@@ -828,6 +829,19 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 .edit-save:hover{{opacity:.9}}
 .edit-block{{background:var(--s0);border:1px solid var(--s1);border-radius:10px;padding:12px;margin-bottom:10px}}
 .edit-block-kind{{font-size:10px;font-weight:600;color:var(--b);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
+.edit-img-actions{{display:flex;gap:6px;margin-top:6px}}
+.edit-img-del{{background:none;border:1px solid #ef4444;border-radius:6px;padding:4px 10px;font-size:11px;color:#ef4444;cursor:pointer;font-family:inherit;transition:all .2s}}
+.edit-img-del:hover{{background:#ef4444;color:#fff}}
+.ai-suggest-wrap{{padding:14px 20px;border-bottom:1px solid var(--s1);background:linear-gradient(135deg,rgba(79,70,229,.04),rgba(168,85,247,.04));display:none}}
+body[data-edit] .ai-suggest-wrap{{display:block}}
+.ai-suggest-row{{display:flex;gap:6px;margin-top:8px}}
+.ai-suggest-input{{flex:1;padding:8px 12px;border:1px solid var(--s2);border-radius:8px;font-size:13px;font-family:inherit;color:var(--c1);resize:none;transition:border-color .2s}}
+.ai-suggest-input:focus{{outline:none;border-color:#7c3aed}}
+.ai-suggest-btn{{padding:8px 14px;background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:opacity .2s;display:flex;align-items:center;gap:5px}}
+.ai-suggest-btn:hover{{opacity:.9}}
+.ai-suggest-btn:disabled{{opacity:.5;cursor:not-allowed}}
+.ai-suggest-hint{{font-size:11px;color:var(--c3);margin-top:6px}}
+.ai-suggest-error{{font-size:12px;color:#ef4444;margin-top:6px;display:none}}
 
 @keyframes modalIn{{from{{opacity:0;transform:scale(.92) translateY(12px)}}to{{opacity:1;transform:scale(1) translateY(0)}}}}
 @keyframes modalBgIn{{from{{opacity:0}}to{{opacity:1}}}}
@@ -848,7 +862,7 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 @media(max-width:480px){{.g2{{grid-template-columns:1fr}}.ct{{padding:24px 18px 20px}}.hd,.ft{{padding:12px 18px}}}}
 </style>
 </head>
-<body>
+<body data-edit="1">
 <div class="app" id="app"></div>
 <script>
 // ── DATA ──
@@ -1268,8 +1282,8 @@ function openEdit(){{
         }}else if(k==='image'){{
           const imgIdx=b.image_idx;
           const hasImg=imgIdx!==undefined&&IMAGES[imgIdx];
-          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Image</div><div class="edit-img-slot" onclick="this.querySelector('input').click()"><input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx!==undefined?imgIdx:'null'}},${{bi}})">${{hasImg?`<img src="${{IMAGES[imgIdx]}}">`:
-          `<div class="placeholder">Click to upload image</div>`}}</div><input class="edit-input" style="margin-top:6px" data-bi="${{bi}}" data-field="alt" placeholder="Image description" value="${{(b.alt||b.caption||'').replace(/"/g,'&quot;')}}"></div>`;
+          blocksHtml+=`<div class="edit-block" id="edit-img-block-${{bi}}"><div class="edit-block-kind">Image</div><div class="edit-img-slot" id="edit-img-slot-${{bi}}" onclick="this.querySelector('input').click()"><input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx!==undefined?imgIdx:'null'}},${{bi}})">${{hasImg?`<img src="${{IMAGES[imgIdx]}}">`:
+          `<div class="placeholder">Click to upload image</div>`}}</div><div class="edit-img-actions">${{hasImg?`<button class="edit-img-del" onclick="editImgDelete(${{bi}},${{imgIdx!==undefined?imgIdx:'null'}})">Delete image</button>`:''}}</div><input class="edit-input" style="margin-top:6px" data-bi="${{bi}}" data-field="alt" placeholder="Image description" value="${{(b.alt||b.caption||'').replace(/"/g,'&quot;')}}"></div>`;
         }}else if(k==='table'){{
           blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Table (headers)</div><input class="edit-input" data-bi="${{bi}}" data-field="headers" data-type="csv" value="${{(b.headers||[]).join(', ')}}"><div class="edit-label" style="margin-top:8px">Rows (comma-separated, one row per line)</div><textarea class="edit-input" rows="${{Math.max(2,(b.rows||[]).length+1)}}" data-bi="${{bi}}" data-field="rows" data-type="table">${{(b.rows||[]).map(r=>r.join(', ')).join('\\n')}}</textarea></div>`;
         }}
@@ -1295,6 +1309,15 @@ function openEdit(){{
   panel.id='edit-panel';
   panel.innerHTML=`<div class="edit-ov" onclick="closeEdit()"></div><div class="edit-drawer">
     <h3>Edit Slide ${{cur+1}}</h3>
+    <div class="ai-suggest-wrap">
+      <div class="edit-label" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> AI Suggest</div>
+      <div class="ai-suggest-row">
+        <textarea class="ai-suggest-input" id="ai-prompt" rows="2" placeholder="e.g. Make this more engaging, simplify the language, add an example..."></textarea>
+        <button class="ai-suggest-btn" id="ai-suggest-btn" onclick="aiSuggest()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Apply</button>
+      </div>
+      <div class="ai-suggest-hint">Describe changes for this slide. AI will update the fields below.</div>
+      <div class="ai-suggest-error" id="ai-error"></div>
+    </div>
     <div class="edit-section"><div class="edit-label">Title</div><input class="edit-input" id="edit-title" value="${{(d.t||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="edit-label">Subtitle</div><input class="edit-input" id="edit-sub" value="${{(d.s||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="edit-label">Narration (voice-over text)</div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
@@ -1308,6 +1331,96 @@ function openEdit(){{
 function closeEdit(){{
   const p=document.getElementById('edit-panel');
   if(p){{p.querySelector('.edit-drawer').style.animation='editIn .2s ease reverse both';setTimeout(()=>p.remove(),200)}}
+}}
+
+async function aiSuggest(){{
+  const prompt=document.getElementById('ai-prompt');
+  const btn=document.getElementById('ai-suggest-btn');
+  const errEl=document.getElementById('ai-error');
+  const instruction=prompt.value.trim();
+  if(!instruction)return;
+
+  // Get API key from localStorage (same key used by main app)
+  const apiKey=localStorage.getItem('lf_anthropic_key')||'';
+  if(!apiKey){{
+    errEl.textContent='No API key found. Set your Anthropic API key in the main app Configure section first.';
+    errEl.style.display='block';
+    return;
+  }}
+
+  // Build current slide snapshot from the edit form
+  const d=slidesData[cur];
+  const snapshot=JSON.parse(JSON.stringify(d));
+  // Override with current form values so AI sees latest edits
+  snapshot.t=document.getElementById('edit-title').value;
+  snapshot.s=document.getElementById('edit-sub').value;
+  snapshot.narration=document.getElementById('edit-narr').value;
+
+  btn.disabled=true;
+  btn.innerHTML='<div style="width:12px;height:12px;border:1.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div> Thinking...';
+  errEl.style.display='none';
+
+  try{{
+    const resp=await fetch('/ai-suggest',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{api_key:apiKey,slide:snapshot,instruction}})
+    }});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error||'Request failed');
+    const updated=data.slide;
+
+    // Populate form fields with AI suggestions
+    if(updated.t!==undefined)document.getElementById('edit-title').value=updated.t;
+    if(updated.s!==undefined)document.getElementById('edit-sub').value=updated.s;
+    if(updated.narration!==undefined)document.getElementById('edit-narr').value=updated.narration;
+
+    // Update content blocks in the form
+    const tp=d.type||'content';
+    if(tp==='content'&&updated.body){{
+      const newBlocks=(updated.body.blocks)||[];
+      const oldBlocks=(d.body&&d.body.blocks)||[];
+      // Update existing block fields
+      document.querySelectorAll('[data-bi]').forEach(el=>{{
+        const bi=parseInt(el.dataset.bi);
+        const field=el.dataset.field;
+        const dtype=el.dataset.type;
+        if(!newBlocks[bi])return;
+        const nb=newBlocks[bi];
+        if(dtype==='list'&&nb.items){{el.value=nb.items.join('\\n')}}
+        else if(dtype==='steps'&&nb.items){{el.value=nb.items.map(x=>x.text||x.label||x).join('\\n')}}
+        else if(dtype==='icons'&&nb.items){{el.value=nb.items.map(x=>(x.icon||'')+'|'+(x.label||'')+'|'+(x.desc||'')).join('\\n')}}
+        else if(dtype==='csv'&&nb[field]){{el.value=nb[field].join(', ')}}
+        else if(dtype==='table'&&nb.rows){{el.value=nb.rows.map(r=>r.join(', ')).join('\\n')}}
+        else if(field==='html'){{el.value=nb.html||nb.text||nb.content||''}}
+        else if(field==='good'||field==='bad'){{el.value=nb[field]||''}}
+        else if(field==='alt'){{el.value=nb.alt||nb.caption||''}}
+        else if(field==='text'){{el.value=nb.text||nb.content||nb.code||''}}
+        else if(nb[field]!==undefined){{el.value=nb[field]}}
+      }});
+      // Store new blocks so saveEdit picks them up
+      if(d.body)d.body.blocks=newBlocks;
+    }}else if(tp==='quiz'&&updated.body){{
+      const b=updated.body;
+      const qEl=document.getElementById('eq-q');if(qEl&&b.question)qEl.value=b.question;
+      (b.options||[]).forEach((o,i)=>{{const el=document.getElementById('eq-o'+i);if(el)el.value=o}});
+      const ciEl=document.getElementById('eq-ci');if(ciEl&&b.correct!==undefined)ciEl.value=b.correct;
+      if(b.explanations){{
+        const excEl=document.getElementById('eq-exc');if(excEl)excEl.value=b.explanations.correct||'';
+        const exwEl=document.getElementById('eq-exw');if(exwEl)exwEl.value=b.explanations.wrong||'';
+      }}
+    }}
+
+    // Flash success
+    btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg> Applied!';
+    btn.style.background='#16a34a';
+    setTimeout(()=>{{btn.disabled=false;btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Apply';btn.style.background=''}},2000);
+  }}catch(e){{
+    errEl.textContent=e.message;
+    errEl.style.display='block';
+    btn.disabled=false;
+    btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Apply';
+  }}
 }}
 
 function editImgChange(input,imgIdx,bi){{
@@ -1328,6 +1441,18 @@ function editImgChange(input,imgIdx,bi){{
     slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx}},${{bi}})"><img src="${{dataUri}}">`;
   }};
   reader.readAsDataURL(file);
+}}
+
+function editImgDelete(bi,imgIdx){{
+  const d=slidesData[cur];
+  const blocks=(d.body&&d.body.blocks)||[];
+  if(blocks[bi]){{delete blocks[bi].image_idx}}
+  if(imgIdx!==null&&imgIdx!==undefined){{delete IMAGES[imgIdx]}}
+  // Update UI
+  const slot=document.getElementById('edit-img-slot-'+bi);
+  if(slot){{slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,null,${{bi}})"><div class="placeholder">Click to upload image</div>`}}
+  const actions=slot&&slot.nextElementSibling;
+  if(actions)actions.innerHTML='';
 }}
 
 function saveEdit(){{
@@ -1626,6 +1751,129 @@ def convert():
             os.remove(temp_path)
 
 
+@app.route("/ai-suggest", methods=["POST"])
+def ai_suggest():
+    """Use Claude to suggest changes to a slide based on user instruction."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    api_key = data.get("api_key", "").strip()
+    if not api_key:
+        return jsonify({"error": "API key required. Set it in the Configure section."}), 400
+
+    slide = data.get("slide", {})
+    instruction = data.get("instruction", "").strip()
+    if not instruction:
+        return jsonify({"error": "Please describe what changes you want."}), 400
+
+    # Build a focused prompt for Claude
+    system_prompt = """You are an expert instructional designer editing a single lesson slide.
+You will receive the current slide data as JSON and a user instruction describing what to change.
+Return ONLY valid JSON with the updated slide. Keep the same structure/schema.
+
+Rules:
+- Keep the same "type" and "cat" unless the user explicitly asks to change them
+- For content slides: preserve the blocks array structure, update text/items as needed
+- For quiz slides: preserve the options/correct/explanations structure
+- Write "narration" as a friendly teacher explaining the content (2-5 sentences)
+- Keep content concise — suitable for a single mobile screen
+- Return ONLY the JSON object, no markdown fences, no extra text"""
+
+    user_msg = f"""Current slide JSON:
+{json.dumps(slide, ensure_ascii=False)}
+
+User instruction: {instruction}
+
+Return the updated slide JSON only."""
+
+    payload = json.dumps({
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 4000,
+        "stream": False,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_msg}],
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+
+        text = ""
+        for block in result.get("content", []):
+            if block.get("type") == "text":
+                text += block.get("text", "")
+
+        text = text.strip()
+        # Strip markdown fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines)
+
+        updated_slide = json.loads(text)
+        return jsonify({"success": True, "slide": updated_slide})
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return jsonify({"error": f"Claude API error ({e.code}): {body[:200]}"}), 500
+    except json.JSONDecodeError:
+        return jsonify({"error": "Claude returned invalid JSON. Try again."}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/upload-html", methods=["POST"])
+def upload_html():
+    """Accept an HTML lesson file upload for editing."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not file.filename.lower().endswith((".html", ".htm")):
+        return jsonify({"error": "Only HTML files are allowed"}), 400
+
+    filename = secure_filename(file.filename)
+    # Add unique prefix to avoid collisions
+    unique_name = f"edit_{uuid.uuid4().hex[:8]}_{filename}"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    file.save(filepath)
+
+    # Ensure the file has the data-edit attribute for editing
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            html = f.read()
+        if 'data-edit="1"' not in html:
+            html = html.replace("<body", '<body data-edit="1"', 1)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html)
+    except Exception:
+        pass
+
+    return jsonify({
+        "success": True,
+        "filename": unique_name,
+        "preview_url": f"/preview/{unique_name}",
+        "download_url": f"/download/{unique_name}",
+    })
+
+
 @app.route("/preview/<filename>")
 def preview(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
@@ -1633,7 +1881,20 @@ def preview(filename):
 
 @app.route("/download/<filename>")
 def download(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename, as_attachment=True)
+    import re as _re
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    if not os.path.isfile(filepath):
+        return "File not found", 404
+    with open(filepath, "r", encoding="utf-8") as f:
+        html = f.read()
+    # Strip edit mode: remove data-edit attribute so edit button is hidden via CSS
+    html = html.replace(' data-edit="1"', '')
+    from flask import Response
+    return Response(
+        html,
+        mimetype="text/html",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 if __name__ == "__main__":
