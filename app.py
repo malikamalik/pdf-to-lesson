@@ -842,6 +842,11 @@ body[data-edit] .ai-suggest-wrap{{display:block}}
 .ai-suggest-btn:disabled{{opacity:.5;cursor:not-allowed}}
 .ai-suggest-hint{{font-size:11px;color:var(--c3);margin-top:6px}}
 .ai-suggest-error{{font-size:12px;color:#ef4444;margin-top:6px;display:none}}
+.narr-header{{display:flex;align-items:center;justify-content:space-between}}
+.narr-regen{{background:none;border:1px solid #7c3aed;border-radius:6px;padding:3px 10px;font-size:11px;color:#7c3aed;cursor:pointer;font-family:inherit;transition:all .2s;display:none;align-items:center;gap:4px}}
+body[data-edit] .narr-regen{{display:inline-flex}}
+.narr-regen:hover{{background:#7c3aed;color:#fff}}
+.narr-regen:disabled{{opacity:.5;cursor:not-allowed}}
 
 @keyframes modalIn{{from{{opacity:0;transform:scale(.92) translateY(12px)}}to{{opacity:1;transform:scale(1) translateY(0)}}}}
 @keyframes modalBgIn{{from{{opacity:0}}to{{opacity:1}}}}
@@ -1320,7 +1325,7 @@ function openEdit(){{
     </div>
     <div class="edit-section"><div class="edit-label">Title</div><input class="edit-input" id="edit-title" value="${{(d.t||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="edit-label">Subtitle</div><input class="edit-input" id="edit-sub" value="${{(d.s||'').replace(/"/g,'&quot;')}}"></div>
-    <div class="edit-section"><div class="edit-label">Narration (voice-over text)</div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
+    <div class="edit-section"><div class="narr-header"><div class="edit-label">Narration (voice-over text)</div><button class="narr-regen" id="narr-regen-btn" onclick="regenNarration()"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI</button></div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
     ${{blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:''}}
     <button class="edit-save" onclick="saveEdit()">Save Changes</button>
     <div style="height:20px"></div>
@@ -1420,6 +1425,67 @@ async function aiSuggest(){{
     errEl.style.display='block';
     btn.disabled=false;
     btn.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Apply';
+  }}
+}}
+
+async function regenNarration(){{
+  const btn=document.getElementById('narr-regen-btn');
+  const narrEl=document.getElementById('edit-narr');
+  const apiKey=localStorage.getItem('lf_anthropic_key')||'';
+  if(!apiKey){{
+    alert('No API key found. Set your Anthropic API key in the main app Configure section first.');
+    return;
+  }}
+
+  // Build a snapshot with current form values
+  const d=slidesData[cur];
+  const snapshot=JSON.parse(JSON.stringify(d));
+  snapshot.t=document.getElementById('edit-title').value;
+  snapshot.s=document.getElementById('edit-sub').value;
+  // Read current block edits from the form
+  const tp=d.type||'content';
+  if(tp==='content'){{
+    const blocks=(snapshot.body&&snapshot.body.blocks)||[];
+    document.querySelectorAll('[data-bi]').forEach(el=>{{
+      const bi=parseInt(el.dataset.bi);
+      const field=el.dataset.field;
+      const dtype=el.dataset.type;
+      if(!blocks[bi])return;
+      if(dtype==='list')blocks[bi].items=el.value.split('\\n').filter(x=>x.trim());
+      else if(field==='html'){{blocks[bi].html=el.value;blocks[bi].text=el.value}}
+      else if(field==='text')blocks[bi].text=el.value;
+      else if(field!=='alt')blocks[bi][field]=el.value;
+    }});
+  }}else if(tp==='quiz'){{
+    const body=snapshot.body||{{}};
+    const qEl=document.getElementById('eq-q');if(qEl)body.question=qEl.value;
+    const opts=[];for(let i=0;i<4;i++){{const el=document.getElementById('eq-o'+i);if(el)opts.push(el.value)}}
+    if(opts.length)body.options=opts;
+    snapshot.body=body;
+  }}
+  delete snapshot.narration;
+
+  btn.disabled=true;
+  btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .7s linear infinite"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg> Rewriting...';
+
+  try{{
+    const resp=await fetch('/ai-suggest',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{api_key:apiKey,slide:snapshot,instruction:'Rewrite ONLY the narration field for this slide. Write 2-5 sentences as a friendly teacher explaining the current content of this slide. Keep the narration natural and conversational. Return the full slide JSON with the updated narration.'}})
+    }});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error||'Request failed');
+    if(data.slide&&data.slide.narration){{
+      narrEl.value=data.slide.narration;
+      btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg> Done!';
+      btn.style.borderColor='#16a34a';btn.style.color='#16a34a';
+      setTimeout(()=>{{btn.disabled=false;btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI';btn.style.borderColor='';btn.style.color=''}},2000);
+    }}else throw new Error('No narration returned');
+  }}catch(e){{
+    alert('Failed: '+e.message);
+    btn.disabled=false;
+    btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI';
   }}
 }}
 
