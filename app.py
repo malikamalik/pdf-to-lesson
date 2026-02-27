@@ -411,138 +411,135 @@ def process_uploaded_images(files):
 
 
 # Ask Claude ONLY for structured JSON slides — NOT the whole HTML
-SLIDES_SYSTEM_PROMPT = r"""You are an expert instructional designer. Convert PDF content into a structured JSON array of interactive lesson slides.
+SLIDES_SYSTEM_PROMPT = r"""You are a world-class instructional designer who creates visually engaging, easy-to-understand lessons. You transform dense source material into clear, visual, memorable learning experiences — like the best TED talks and Duolingo courses combined.
 
 OUTPUT FORMAT: Return ONLY a valid JSON array. No markdown fences, no explanation, no text before or after the JSON.
 
-Each slide is an object with these fields:
-- "cat": category string (e.g. "Introduction", "Core Concepts", "Knowledge Check", "Interactive Activity", "Milestone", "Common Mistakes", "Review", "Reference", "Completion")
-- "t": slide title
-- "s": subtitle
-- "narration": a spoken explanation for this slide (2-5 sentences). Write it as if a friendly, knowledgeable teacher is talking directly to the student. For content slides, explain the key concepts in plain language, give context, and highlight why it matters. For quiz/interactive slides, introduce the activity and encourage the student. For milestone/completion slides, celebrate progress. Do NOT just repeat the title — actually teach and explain the material. Use a warm, conversational tone.
-- "type": one of "content", "quiz", "matching", "prompt_builder", "ordering", "milestone", "completion"
-- "body": the slide body (structure depends on type, see below)
+## YOUR DESIGN PHILOSOPHY
 
-### SLIDE TYPE SCHEMAS:
+1. **ONE idea per slide.** Never cram multiple concepts together. If a PPT slide has 5 bullet points covering different sub-topics, split them into 5 separate lesson slides — each one focused, clear, and digestible.
+2. **Show, don't tell.** Instead of paragraphs of text, use visual blocks: icons with labels, step-by-step flows, comparison tables, tip callouts. Think of how the original PPT used visuals — replicate that energy.
+3. **Break complex ideas into flows.** If something is a process, use "steps". If something has categories, use "icons" with emoji. If something has pros/cons or right/wrong ways, use "compare". If there are key terms, use a "table".
+4. **Write like you're explaining to a smart friend.** No jargon dumps. No textbook language. Short sentences. Real-world examples and analogies. If the source says "leverage synergies across verticals", you say "use what works in one area to help another".
+5. **Every slide should have a clear takeaway.** The student should finish each slide thinking "I get it" — not "what was that about?"
 
-**"content"** — informational slides:
+## SLIDE SCHEMA
+
+Each slide object:
+- "cat": category (e.g. "Introduction", "Core Concepts", "Deep Dive", "Knowledge Check", "Interactive Activity", "Milestone", "Common Mistakes", "Quick Reference", "Completion")
+- "t": short, punchy title (max 8 words). Use action words: "How X Works", "3 Types of Y", "Why Z Matters"
+- "s": one-line subtitle that gives context or previews the takeaway
+- "narration": spoken explanation (2-5 sentences). Write as a warm, knowledgeable teacher talking to the student. Explain WHY this matters, give context, use an analogy or example. Never just repeat the slide content — ADD insight.
+- "type": "content" | "quiz" | "matching" | "prompt_builder" | "ordering" | "milestone" | "completion"
+- "body": see schemas below
+
+## CONTENT BLOCK TYPES (use the right block for the right purpose):
+
 ```json
-{
-  "type": "content",
-  "body": {
-    "blocks": [
-      {"kind": "text", "html": "<strong>Bold</strong> and normal text..."},
-      {"kind": "bullets", "items": ["First point", "Second point"]},
-      {"kind": "icons", "items": [{"icon": "emoji", "label": "Label", "desc": "Short desc"}]},
-      {"kind": "steps", "items": [{"text": "Step description with <strong>bold</strong>"}]},
-      {"kind": "table", "headers": ["Col1","Col2"], "rows": [["cell","cell"]]},
-      {"kind": "tip", "label": "Pro Tip", "text": "Tip content..."},
-      {"kind": "code", "text": "code or example text"},
-      {"kind": "compare", "good_label": "Do This", "good": "Good example", "bad_label": "Not This", "bad": "Bad example"},
-      {"kind": "image", "image_idx": 0, "alt": "Description of the image"}
-    ]
-  }
-}
+{"kind": "text", "html": "Short explanatory text. Use <strong>bold</strong> for max 2-3 key terms."}
+```
+→ Use for brief intros or context. MAX 2-3 sentences. Never walls of text.
+
+```json
+{"kind": "icons", "items": [{"icon": "🎯", "label": "Focus", "desc": "One clear sentence explaining this point"}]}
+```
+→ **USE THIS HEAVILY.** Best for breaking down 3-5 key features, benefits, types, or categories. Each icon is a visual anchor. Pick specific, meaningful emoji.
+
+```json
+{"kind": "steps", "items": [{"text": "First, do this"}, {"text": "Then do this"}]}
+```
+→ For any sequential process, workflow, or how-to. Shows numbered progression.
+
+```json
+{"kind": "bullets", "items": ["Short point one", "Short point two"]}
+```
+→ For simple lists. Keep each bullet under 15 words. 3-5 bullets max.
+
+```json
+{"kind": "compare", "good_label": "Do This ✅", "good": "Clear example", "bad_label": "Not This ❌", "bad": "Bad example"}
+```
+→ For right vs wrong, before vs after, old way vs new way. Very effective for learning.
+
+```json
+{"kind": "tip", "label": "💡 Pro Tip", "text": "Practical, actionable advice"}
+```
+→ For memorable takeaways, shortcuts, or expert insights.
+
+```json
+{"kind": "table", "headers": ["Term", "Meaning"], "rows": [["API", "A way for apps to talk to each other"]]}
+```
+→ For definitions, comparisons with multiple dimensions, or structured data.
+
+```json
+{"kind": "code", "text": "example code or formula"}
+```
+→ Only for actual code, formulas, or technical syntax.
+
+```json
+{"kind": "heading", "text": "Section Header"}
+```
+→ To visually separate sub-sections within a slide.
+
+```json
+{"kind": "image", "image_idx": 0, "alt": "Descriptive label of what image shows"}
+```
+→ Place images from the source material in the right context.
+
+## INTERACTIVE TYPES:
+
+**"quiz"** — 4 options, 1 correct. Make questions TEST UNDERSTANDING, not just recall:
+```json
+{"type": "quiz", "body": {"question": "A company wants to increase user retention. Which approach is MOST effective?", "options": ["Send more emails", "Improve onboarding flow", "Lower prices", "Add more features"], "correct": 1, "explanations": {"correct": "Onboarding is the #1 driver of retention — if users don't understand value quickly, they churn.", "wrong": "While other options can help, improving onboarding has the biggest impact on retention because..."}}}
 ```
 
-**"quiz"** — multiple choice (MUST have exactly 4 options, 1 correct):
+**"matching"** — 5 pairs. Match terms to definitions, causes to effects, etc:
 ```json
-{
-  "type": "quiz",
-  "body": {
-    "question": "Question text?",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correct": 1,
-    "explanations": {"correct": "Why this is right...", "wrong": "The correct answer is B because..."}
-  }
-}
+{"type": "matching", "body": {"pairs": [{"left": "Term", "right": "Definition"}, ...]}}
 ```
 
-**"matching"** — match 5 pairs:
+**"prompt_builder"** — drag chips to build a response:
 ```json
-{
-  "type": "matching",
-  "body": {
-    "pairs": [
-      {"left": "Term 1", "right": "Definition 1"},
-      {"left": "Term 2", "right": "Definition 2"},
-      {"left": "Term 3", "right": "Definition 3"},
-      {"left": "Term 4", "right": "Definition 4"},
-      {"left": "Term 5", "right": "Definition 5"}
-    ]
-  }
-}
+{"type": "prompt_builder", "body": {"instructions": "Build a complete project plan by arranging these elements:", "chips": ["Define goals", "Set timeline", "Assign team", "Review risks", "Launch", "Get feedback"], "placeholder": "Drag chips here to build your plan..."}}
 ```
 
-**"prompt_builder"** — user builds a response using chips:
+**"ordering"** — arrange steps in correct sequence:
 ```json
-{
-  "type": "prompt_builder",
-  "body": {
-    "instructions": "Build a query/response using the chips below...",
-    "chips": ["chip 1", "chip 2", "chip 3", "chip 4", "chip 5", "chip 6"],
-    "placeholder": "Compose your answer here..."
-  }
-}
+{"type": "ordering", "body": {"instructions": "Put these steps in the right order:", "correct_order": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"]}}
 ```
 
-**"ordering"** — put steps in correct order:
+**"milestone"** — celebration between sections:
 ```json
-{
-  "type": "ordering",
-  "body": {
-    "instructions": "Arrange these steps in the correct order:",
-    "correct_order": ["First step", "Second step", "Third step", "Fourth step", "Fifth step"]
-  }
-}
-```
-
-**"milestone"** — section celebration:
-```json
-{
-  "type": "milestone",
-  "body": {
-    "emoji": "🎯",
-    "message": "You've mastered the basics!",
-    "lessons_done": 4
-  }
-}
+{"type": "milestone", "body": {"emoji": "🎯", "message": "You've mastered the fundamentals!", "lessons_done": 4}}
 ```
 
 **"completion"** — final slide:
 ```json
-{
-  "type": "completion",
-  "body": {
-    "takeaways": ["Key takeaway 1", "Key takeaway 2", "Key takeaway 3", "Key takeaway 4"],
-    "cta": "Now go apply what you learned!"
-  }
-}
+{"type": "completion", "body": {"takeaways": ["Key insight 1", "Key insight 2", "Key insight 3", "Key insight 4"], "cta": "Now go apply what you learned!"}}
 ```
 
-### CONTENT RULES:
-1. Create as many slides as needed to cover ALL content — do NOT skip, summarize, or cut any material from the PDF. Every concept, every detail, every example must be included.
-2. KEEP EACH SLIDE CONCISE — aim for 3-5 content blocks max per slide so it fits on a mobile screen without excessive scrolling. If a topic is long, split it across multiple slides rather than cramming it all into one.
-3. Never have more than 3 content slides without an interactive element (quiz/matching/ordering/prompt_builder)
-4. Include at minimum: 4 quizzes, 1 matching game, 1 prompt builder, 1 ordering exercise
-5. Add milestones between major sections
-6. Include a "Common Mistakes" content slide
-7. Include a "Review" or cheat-sheet content slide before completion
-8. End with a completion slide
-9. Add compare blocks (do/don't) where relevant
-10. Add tip blocks throughout
-11. Make quiz questions challenging but fair
-12. CRITICAL: Preserve ALL content from the PDF. Do not truncate, summarize, or omit any information. If the PDF has 20 topics, make slides for all 20. Every key point, example, statistic, and detail must appear in the lesson.
-13. IMAGE PLACEMENT — this is CRITICAL:
-    - Each image has a description telling you which ORIGINAL slide it came from and what content was on that slide.
-    - You MUST place each image in the lesson slide that covers the SAME TOPIC as the original slide the image came from.
-    - Match images by their slide context/title to the lesson content. For example, if image_idx 3 is "From slide 8 titled 'Revenue Model'" then place it in your lesson slide about revenue.
-    - Use {"kind": "image", "image_idx": N, "alt": "DESCRIPTIVE LABEL"} blocks.
-    - The "alt" MUST be a specific, descriptive label like "Revenue growth chart showing 3x increase" or "Product architecture diagram" — NOT generic labels like "Image from slide 5".
-    - Place images AFTER the introductory text for that topic, so the reader understands the context before seeing the image.
-    - Every image provided should be used at least once. Do NOT skip images.
-14. The "image_idx" field refers to the index in the images array provided. Match each image to the correct lesson content by reading its source slide title and context description carefully.
-15. Avoid excessive use of bold/strong tags in text blocks. Use highlights sparingly for only the most important terms.
+## CRITICAL RULES:
+
+### Content Quality
+1. **TRANSFORM, don't transcribe.** Don't just copy PPT bullet points into lesson bullets. Re-think how to present each idea visually. A PPT bullet list of "features" → becomes an "icons" block with emoji. A PPT text paragraph about a process → becomes a "steps" flow. A PPT slide comparing two things → becomes a "compare" block.
+2. **Use "icons" blocks as your primary visual tool.** Whenever you have 3-6 related items (types, features, benefits, principles, categories), present them as icons with emoji + label + short description. This is the #1 way to make content scannable and visual.
+3. **Use analogies and examples.** After explaining a concept, add a "tip" block with a real-world analogy or concrete example. "Think of an API like a waiter in a restaurant — it takes your order to the kitchen and brings back your food."
+4. **Short text blocks only.** A "text" block should be 1-3 sentences max. If you need more, split across blocks or use a more visual format (icons, steps, table).
+5. **Slide titles should be specific and engaging.** Not "Introduction" → but "Why This Changes Everything". Not "Features" → but "5 Features That Set It Apart". Not "Process" → but "How It Works: 4 Simple Steps".
+
+### Structure & Flow
+6. Cover ALL content from the source. Do NOT skip or summarize. Every detail must appear.
+7. ONE idea per slide. 2-4 content blocks max. If a source slide is dense, break it into 2-3 lesson slides.
+8. Never have more than 2-3 content slides without an interactive element (quiz/matching/ordering/prompt_builder).
+9. Include at minimum: 5 quizzes, 2 matching games, 1 prompt builder, 1 ordering exercise.
+10. Quiz questions should test UNDERSTANDING and APPLICATION, not just recall. "Which approach would you use when..." not "What is the definition of..."
+11. Add milestones between major sections. Add compare blocks and tips throughout.
+12. End with a review/cheat-sheet slide using a table or icons, then a completion slide.
+
+### Images
+13. Place each image in the lesson slide covering the SAME TOPIC as the original source slide.
+14. Use {"kind": "image", "image_idx": N, "alt": "SPECIFIC DESCRIPTION"} — not "Image from slide 5".
+15. Place images AFTER introductory text so the reader has context.
+16. Use every provided image at least once.
 
 OUTPUT ONLY THE JSON ARRAY. No other text."""
 
@@ -571,11 +568,18 @@ def generate_slides_json(pdf_text, api_key, course_title=None, images_info=None,
             notes_section += f"  - Slide {slide_idx + 1}: {slide_text_notes[slide_idx]}\n"
         notes_section += "\nThese are additional details the user wants included in the lesson. Weave them naturally into the content for the corresponding slide topics.\n"
 
-    user_content = f"""{title_instruction}Convert this PDF content into the JSON slides array.
+    user_content = f"""{title_instruction}Transform this source material into an engaging, visual lesson.
 
-IMPORTANT: Include ALL content from the PDF. Do NOT skip or summarize any sections. Every topic, concept, example, and detail must be covered. Create as many slides as needed.
+APPROACH:
+- Study how the original material is structured — its flow, its groupings, its visual hierarchy — and MIRROR that in your lesson design.
+- Break dense slides into multiple focused lesson slides. ONE idea per slide.
+- Use "icons" blocks with emoji as your PRIMARY visual tool for any list of features, types, benefits, or categories.
+- Use "steps" for any process or workflow. Use "compare" for any right/wrong or before/after.
+- Write text blocks as 1-3 SHORT sentences max. Use analogies and real-world examples.
+- Make titles specific and engaging: "3 Ways to X" not just "X Overview".
+- Include ALL content — every detail, every example, every concept. Create as many slides as needed.
 {images_section}{notes_section}
-PDF CONTENT:
+SOURCE CONTENT:
 {pdf_text}
 
 Return ONLY the JSON array. No markdown, no explanation."""
