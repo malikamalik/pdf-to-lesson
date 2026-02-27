@@ -8,3 +8,4 @@ output/
 venv/
 .venv/
 .vercel/
+.vercel

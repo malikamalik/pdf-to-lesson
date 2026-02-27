@@ -909,22 +909,9 @@
     </div>
 
     <div class="input-group">
-      <label for="elevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
-      <div class="hint">Enables AI narration. Get a key at <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a></div>
-      <input type="password" class="text-input" id="elevenLabsKey" placeholder="xi-...">
-    </div>
-
-    <div class="input-group">
-      <label for="voiceSelect">Narration voice</label>
-      <select class="text-input" id="voiceSelect">
-        <option value="21m00Tcm4TlvDq8ikWAM">Rachel — Calm</option>
-        <option value="29vD33N1CtxCmqQRPOHJ">Drew — Professional</option>
-        <option value="EXAVITQu4vr4xnSDxMaL">Bella — Friendly</option>
-        <option value="ErXwobaYiN019PkySvjV">Antoni — Authoritative</option>
-        <option value="TxGEqnHWrfWFTfGW9XjX">Josh — Narrative</option>
-        <option value="pNInz6obpgDQGcFmaJgB">Adam — Resonant</option>
-        <option value="yoZ06aMxZJJ28mfd3POQ">Sam — Conversational</option>
-      </select>
+      <label for="elevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional — enables voice narration)</span></label>
+      <div class="hint">Get a free key at <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a></div>
+      <input type="password" class="text-input" id="elevenLabsKey" placeholder="sk_...">
     </div>
 
     <button class="primary-btn" id="convertBtn" disabled onclick="startConversion()">
@@ -1048,15 +1035,13 @@ let slideImageFiles = {};  // { slideIndex: File }
 let slideTextNotes = {};   // { slideIndex: "text note" }
 
 // ===== PERSIST API KEYS IN LOCALSTORAGE =====
-const STORAGE_KEYS = { api: 'lf_anthropic_key', el: 'lf_elevenlabs_key', voice: 'lf_voice', title: 'lf_title' };
+const STORAGE_KEYS = { api: 'lf_anthropic_key', el: 'lf_elevenlabs_key', title: 'lf_title' };
 
 function loadSavedKeys() {
   const saved = localStorage.getItem(STORAGE_KEYS.api);
   if (saved) { apiKeyInput.value = saved; }
   const elKey = localStorage.getItem(STORAGE_KEYS.el);
   if (elKey) { document.getElementById('elevenLabsKey').value = elKey; }
-  const voice = localStorage.getItem(STORAGE_KEYS.voice);
-  if (voice) { document.getElementById('voiceSelect').value = voice; }
   const title = localStorage.getItem(STORAGE_KEYS.title);
   if (title) { document.getElementById('titleInput').value = title; }
   checkReady();
@@ -1071,8 +1056,6 @@ function saveKeys() {
   if (elVal) localStorage.setItem(STORAGE_KEYS.el, elVal);
   else localStorage.removeItem(STORAGE_KEYS.el);
 
-  localStorage.setItem(STORAGE_KEYS.voice, document.getElementById('voiceSelect').value);
-
   const titleVal = document.getElementById('titleInput').value.trim();
   if (titleVal) localStorage.setItem(STORAGE_KEYS.title, titleVal);
   else localStorage.removeItem(STORAGE_KEYS.title);
@@ -1081,7 +1064,6 @@ function saveKeys() {
 // Save keys whenever they change
 apiKeyInput.addEventListener('input', () => { saveKeys(); checkReady(); });
 document.getElementById('elevenLabsKey').addEventListener('input', saveKeys);
-document.getElementById('voiceSelect').addEventListener('change', saveKeys);
 document.getElementById('titleInput').addEventListener('input', saveKeys);
 
 // Load on startup
@@ -1448,7 +1430,7 @@ async function startConversion() {
   formData.append('api_key', apiKeyInput.value.trim());
   formData.append('title', document.getElementById('titleInput').value.trim());
   formData.append('elevenlabs_key', document.getElementById('elevenLabsKey').value.trim());
-  formData.append('elevenlabs_voice', document.getElementById('voiceSelect').value);
+  formData.append('elevenlabs_voice', 'EXAVITQu4vr4xnSDxMaL');
 
   // Append slide-specific image assignments
   const assignmentMap = {};
