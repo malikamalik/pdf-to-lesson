@@ -1338,6 +1338,23 @@ function closeEdit(){{
   if(p){{p.querySelector('.edit-drawer').style.animation='editIn .2s ease reverse both';setTimeout(()=>p.remove(),200)}}
 }}
 
+async function callClaude(apiKey,slide,instruction){{
+  const sysPrompt='You are an expert instructional designer editing a single lesson slide. You will receive the current slide data as JSON and a user instruction describing what to change. Return ONLY valid JSON with the updated slide. Keep the same structure/schema. Keep the same type and cat unless the user explicitly asks to change them. Write narration as a friendly teacher explaining the content (2-5 sentences). Keep content concise for a mobile screen. Return ONLY the JSON object, no markdown fences, no extra text.';
+  const userMsg='Current slide JSON:\\n'+JSON.stringify(slide)+'\\n\\nUser instruction: '+instruction+'\\n\\nReturn the updated slide JSON only.';
+  const resp=await fetch('https://api.anthropic.com/v1/messages',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}},
+    body:JSON.stringify({{model:'claude-sonnet-4-20250514',max_tokens:4000,system:sysPrompt,messages:[{{role:'user',content:userMsg}}]}})
+  }});
+  if(!resp.ok){{const e=await resp.text();throw new Error('Claude API error ('+resp.status+'): '+e.slice(0,200))}}
+  const result=await resp.json();
+  let text='';
+  for(const block of (result.content||[])){{if(block.type==='text')text+=block.text||''}}
+  text=text.trim();
+  if(text.startsWith('```')){{const lines=text.split('\\n');lines.shift();if(lines.length&&lines[lines.length-1].trim().startsWith('```'))lines.pop();text=lines.join('\\n')}}
+  return JSON.parse(text);
+}}
+
 async function aiSuggest(){{
   const prompt=document.getElementById('ai-prompt');
   const btn=document.getElementById('ai-suggest-btn');
@@ -1366,14 +1383,7 @@ async function aiSuggest(){{
   errEl.style.display='none';
 
   try{{
-    const resp=await fetch('/ai-suggest',{{
-      method:'POST',
-      headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{api_key:apiKey,slide:snapshot,instruction}})
-    }});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.error||'Request failed');
-    const updated=data.slide;
+    const updated=await callClaude(apiKey,snapshot,instruction);
 
     // Populate form fields with AI suggestions
     if(updated.t!==undefined)document.getElementById('edit-title').value=updated.t;
@@ -1469,19 +1479,13 @@ async function regenNarration(){{
   btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .7s linear infinite"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg> Rewriting...';
 
   try{{
-    const resp=await fetch('/ai-suggest',{{
-      method:'POST',
-      headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{api_key:apiKey,slide:snapshot,instruction:'Rewrite ONLY the narration field for this slide. Write 2-5 sentences as a friendly teacher explaining the current content of this slide. Keep the narration natural and conversational. Return the full slide JSON with the updated narration.'}})
-    }});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.error||'Request failed');
-    if(data.slide&&data.slide.narration){{
-      narrEl.value=data.slide.narration;
+    const updated=await callClaude(apiKey,snapshot,'Rewrite ONLY the narration field for this slide. Write 2-5 sentences as a friendly teacher explaining the current content of this slide. Keep the narration natural and conversational. Return the full slide JSON with the updated narration.');
+    if(updated&&updated.narration){{
+      narrEl.value=updated.narration;
       btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg> Done!';
       btn.style.borderColor='#16a34a';btn.style.color='#16a34a';
       setTimeout(()=>{{btn.disabled=false;btn.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI';btn.style.borderColor='';btn.style.color=''}},2000);
-    }}else throw new Error('No narration returned');
+    }}else{{throw new Error('No narration returned')}}
   }}catch(e){{
     alert('Failed: '+e.message);
     btn.disabled=false;
