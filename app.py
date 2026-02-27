@@ -847,6 +847,8 @@ body[data-edit] .ai-suggest-wrap{{display:block}}
 body[data-edit] .narr-regen{{display:inline-flex}}
 .narr-regen:hover{{background:#7c3aed;color:#fff}}
 .narr-regen:disabled{{opacity:.5;cursor:not-allowed}}
+.edit-add-img{{display:flex;align-items:center;gap:6px;padding:10px 14px;border:1.5px dashed var(--s2);border-radius:10px;background:none;cursor:pointer;font-size:12px;font-weight:500;color:var(--c3);font-family:inherit;width:100%;transition:all .2s;margin-top:8px;justify-content:center}}
+.edit-add-img:hover{{border-color:var(--b);color:var(--b);background:var(--b06)}}
 
 @keyframes modalIn{{from{{opacity:0;transform:scale(.92) translateY(12px)}}to{{opacity:1;transform:scale(1) translateY(0)}}}}
 @keyframes modalBgIn{{from{{opacity:0}}to{{opacity:1}}}}
@@ -1326,7 +1328,7 @@ function openEdit(){{
     <div class="edit-section"><div class="edit-label">Title</div><input class="edit-input" id="edit-title" value="${{(d.t||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="edit-label">Subtitle</div><input class="edit-input" id="edit-sub" value="${{(d.s||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="narr-header"><div class="edit-label">Narration (voice-over text)</div><button class="narr-regen" id="narr-regen-btn" onclick="regenNarration()"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI</button></div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
-    ${{blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:''}}
+    ${{tp==='content'?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}<button class="edit-add-img" onclick="editAddImage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> Add Image</button><input type="file" accept="image/*" id="edit-add-img-input" style="display:none" onchange="editAddImageDone(this)"></div>`:(blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:'')}}
     <button class="edit-save" onclick="saveEdit()">Save Changes</button>
     <div style="height:20px"></div>
   </div>`;
@@ -1523,6 +1525,36 @@ function editImgDelete(bi,imgIdx){{
   if(slot){{slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,null,${{bi}})"><div class="placeholder">Click to upload image</div>`}}
   const actions=slot&&slot.nextElementSibling;
   if(actions)actions.innerHTML='';
+}}
+
+function editAddImage(){{
+  document.getElementById('edit-add-img-input').click();
+}}
+
+function editAddImageDone(input){{
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=function(e){{
+    const dataUri=e.target.result;
+    // Find next available IMAGES index
+    let imgIdx=0;
+    while(IMAGES[imgIdx])imgIdx++;
+    IMAGES[imgIdx]=dataUri;
+
+    // Add image block to slide data
+    const d=slidesData[cur];
+    if(!d.body)d.body={{}};
+    if(!d.body.blocks)d.body.blocks=[];
+    const bi=d.body.blocks.length;
+    d.body.blocks.push({{kind:'image',image_idx:imgIdx,alt:''}});
+
+    // Rebuild the edit panel to show the new image block
+    input.value='';
+    closeEdit();
+    setTimeout(()=>openEdit(),250);
+  }};
+  reader.readAsDataURL(file);
 }}
 
 function saveEdit(){{
