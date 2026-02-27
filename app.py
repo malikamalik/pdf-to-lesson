@@ -9,7 +9,8 @@ import xml.etree.ElementTree as etree
 from pypdf import PdfReader
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
-from anthropic import Anthropic
+import urllib.request
+import urllib.error
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -548,8 +549,6 @@ OUTPUT ONLY THE JSON ARRAY. No other text."""
 
 def generate_slides_json(pdf_text, api_key, course_title=None, images_info=None, slide_text_notes=None):
     """Ask Claude to generate ONLY the slides JSON data."""
-    client = Anthropic(api_key=api_key)
-
     # Don't truncate - send as much as possible (Sonnet has 200K context)
     if len(pdf_text) > 150000:
         pdf_text = pdf_text[:150000] + "\n\n[... Content truncated for context window ...]"
@@ -572,15 +571,7 @@ def generate_slides_json(pdf_text, api_key, course_title=None, images_info=None,
             notes_section += f"  - Slide {slide_idx + 1}: {slide_text_notes[slide_idx]}\n"
         notes_section += "\nThese are additional details the user wants included in the lesson. Weave them naturally into the content for the corresponding slide topics.\n"
 
-    # Use streaming to avoid 10-minute timeout on long generations
-    raw_chunks = []
-    with client.messages.stream(
-        model="claude-sonnet-4-20250514",
-        max_tokens=32000,
-        system=SLIDES_SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": f"""{title_instruction}Convert this PDF content into the JSON slides array.
+    user_content = f"""{title_instruction}Convert this PDF content into the JSON slides array.
 
 IMPORTANT: Include ALL content from the PDF. Do NOT skip or summarize any sections. Every topic, concept, example, and detail must be covered. Create as many slides as needed.
 {images_section}{notes_section}
@@ -588,10 +579,48 @@ PDF CONTENT:
 {pdf_text}
 
 Return ONLY the JSON array. No markdown, no explanation."""
-        }],
-    ) as stream:
-        for text in stream.text_stream:
-            raw_chunks.append(text)
+
+    # Use streaming to avoid timeout on long generations
+    payload = json.dumps({
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 32000,
+        "stream": True,
+        "system": SLIDES_SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": user_content}],
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+
+    raw_chunks = []
+    with urllib.request.urlopen(req, timeout=600) as resp:
+        buffer = ""
+        for chunk in iter(lambda: resp.read(4096).decode("utf-8", errors="replace"), ""):
+            buffer += chunk
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                line = line.strip()
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        evt = json.loads(data_str)
+                        if evt.get("type") == "content_block_delta":
+                            delta = evt.get("delta", {})
+                            text = delta.get("text", "")
+                            if text:
+                                raw_chunks.append(text)
+                    except json.JSONDecodeError:
+                        pass
 
     raw = "".join(raw_chunks).strip()
 
