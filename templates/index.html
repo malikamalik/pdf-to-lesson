@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LessonForge — PDF to Interactive Lesson</title>
+<style>
+  :root {
+    --accent: #4F46E5;
+    --accent-light: #6366F1;
+    --accent-bg: rgba(79, 70, 229, 0.04);
+    --accent-border: rgba(79, 70, 229, 0.12);
+    --text: #1a1a1a;
+    --text-secondary: #71717a;
+    --text-tertiary: #a1a1aa;
+    --border: #e4e4e7;
+    --border-light: #f4f4f5;
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --success: #22c55e;
+    --success-bg: rgba(34, 197, 94, 0.06);
+    --error: #ef4444;
+    --error-bg: rgba(239, 68, 68, 0.06);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NAVBAR */
+  .navbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-logo svg { width: 18px; height: 18px; }
+  .nav-brand {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .nav-sub {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    font-weight: 400;
+  }
+
+  /* MAIN */
+  .main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+  }
+  .hero p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 480px;
+    margin: 0 auto;
+    font-weight: 400;
+  }
+
+  /* STEPS INDICATOR */
+  .steps-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 40px;
+  }
+  .step-col { display: flex; flex-direction: column; align-items: center; }
+  .step-circle {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-tertiary);
+    background: var(--surface);
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+  .step-circle.active {
+    border-color: var(--accent);
+    color: var(--surface);
+    background: var(--accent);
+  }
+  .step-circle.done {
+    border-color: var(--success);
+    background: var(--success);
+    color: var(--surface);
+  }
+  .step-line {
+    width: 48px; height: 1px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .step-line.done { background: var(--success); }
+  .step-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-align: center;
+    margin-top: 6px;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  .step-label.active { color: var(--accent); }
+
+  /* SECTIONS */
+  .section {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: all 0.2s;
+  }
+  .section.highlight {
+    border-color: var(--accent-border);
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    margin-bottom: 16px;
+  }
+
+  /* INPUT GROUPS */
+  .input-group {
+    margin-bottom: 16px;
+  }
+  .input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .input-group .hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+  }
+  .input-group .hint a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .input-group .hint a:hover {
+    text-decoration: underline;
+  }
+  .text-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .text-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+  }
+  .text-input::placeholder {
+    color: var(--text-tertiary);
+  }
+  select.text-input {
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  /* DROPZONE */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .dropzone.has-file {
+    border-color: var(--success);
+    background: var(--success-bg);
+    border-style: solid;
+  }
+  .dropzone-icon {
+    width: 44px; height: 44px;
+    margin: 0 auto 10px;
+    border-radius: 10px;
+    background: var(--accent-bg);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .dropzone.has-file .dropzone-icon {
+    background: var(--success-bg);
+  }
+  .dropzone-icon svg { width: 22px; height: 22px; }
+  .dropzone h3 {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .dropzone p {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--success);
+  }
+  .file-info svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .remove-file {
+    background: none;
+    border: none;
+    color: var(--error);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .remove-file:hover { background: var(--error-bg); }
+
+  /* SLIDE LIST (Assign Images step) */
+  .slides-panel {
+    display: none;
+  }
+  .slides-panel.visible {
+    display: block;
+  }
+  .extracting-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .slide-list {
+    list-style: none;
+    padding: 0;
+  }
+  .slide-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .slide-row:last-child { border-bottom: none; }
+  .slide-number {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .slide-title {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 400;
+    line-height: 1.4;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .slide-image-slot {
+    flex-shrink: 0;
+    position: relative;
+  }
+  .slide-upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .slide-upload-btn:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .slide-upload-btn svg {
+    width: 12px; height: 12px;
+    flex-shrink: 0;
+  }
+  .slide-upload-btn.has-image {
+    border-color: var(--success);
+    color: var(--success);
+    background: var(--success-bg);
+  }
+  .slide-image-preview {
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .slide-image-preview.visible {
+    display: flex;
+  }
+  .slide-image-thumb {
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+  }
+  .slide-image-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+  }
+  .slide-image-remove:hover { color: var(--error); }
+  .slide-image-remove svg { width: 14px; height: 14px; }
+  .slide-image-input {
+    display: none;
+  }
+  .slide-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .slide-text-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .slide-text-btn:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .slide-text-btn svg {
+    width: 12px; height: 12px;
+    flex-shrink: 0;
+  }
+  .slide-text-btn.has-text {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .slide-expand {
+    display: none;
+    padding: 8px 0 4px 40px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .slide-expand.visible {
+    display: block;
+  }
+  .slide-expand textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    resize: vertical;
+    min-height: 56px;
+    max-height: 160px;
+    outline: none;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+  .slide-expand textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+  }
+  .slide-expand textarea::placeholder {
+    color: var(--text-tertiary);
+  }
+  .slide-expand-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .slide-expand-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    min-width: 42px;
+    padding-top: 9px;
+  }
+  .slide-expand-field { flex: 1; }
+  .slides-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0 4px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+  .slides-summary .count {
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  /* PRIMARY BUTTON */
+  .primary-btn {
+    width: 100%;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--surface);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+  }
+  .primary-btn:hover:not(:disabled) {
+    background: var(--accent-light);
+  }
+  .primary-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .primary-btn svg { width: 16px; height: 16px; }
+
+  .secondary-btn {
+    width: 100%;
+    padding: 12px 24px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+    margin-top: 8px;
+  }
+  .secondary-btn:hover {
+    background: var(--bg);
+  }
+
+  /* PROGRESS / LOADING */
+  .progress-section {
+    display: none;
+    margin-top: 16px;
+  }
+  .progress-section.visible { display: block; }
+
+  .progress-track {
+    height: 3px;
+    background: var(--border-light);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+  .progress-fill.indeterminate {
+    width: 30%;
+    animation: indeterminate 1.5s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+
+  .progress-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-steps {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .status-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    transition: all 0.2s;
+    font-weight: 400;
+  }
+  .status-step.active {
+    background: var(--accent-bg);
+    color: var(--text);
+  }
+  .status-step.done {
+    color: var(--success);
+  }
+  .status-step .step-icon {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .status-step.done .step-icon {
+    background: var(--success);
+    border-color: var(--success);
+    color: var(--surface);
+  }
+  .status-step.active .step-icon {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* RESULT */
+  .result-card {
+    display: none;
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin-top: 16px;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+  }
+  .result-card.visible { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .result-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto 12px;
+    background: var(--success-bg);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .result-card h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .result-card p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .result-stats {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .result-stat {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border-light);
+  }
+  .result-stat .val { font-size: 16px; font-weight: 500; color: var(--accent); }
+  .result-stat .lbl { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .result-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-preview, .btn-download, .btn-new {
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-preview {
+    background: var(--accent);
+    color: var(--surface);
+  }
+  .btn-preview:hover { background: var(--accent-light); }
+  .btn-download {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+  }
+  .btn-download:hover { background: rgba(79, 70, 229, 0.08); }
+  .btn-regen {
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    color: #fff;
+    border: none;
+  }
+  .btn-regen:hover { background: linear-gradient(135deg, #D97706, #B45309); }
+  .btn-new {
+    background: var(--surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-new:hover { background: var(--bg); }
+
+  /* ERROR */
+  .error-msg {
+    display: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--error-bg);
+    border: 1px solid rgba(239, 68, 68, 0.12);
+    color: var(--error);
+    font-size: 13px;
+    margin-top: 12px;
+    align-items: center;
+    gap: 6px;
+    font-weight: 400;
+  }
+  .error-msg.visible { display: flex; }
+
+  /* FEATURES */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin-top: 40px;
+  }
+  .feature {
+    padding: 16px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    text-align: center;
+  }
+  .feature .f-icon { font-size: 22px; margin-bottom: 4px; }
+  .feature .f-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .feature .f-desc { font-size: 11px; color: var(--text-tertiary); line-height: 1.4; }
+
+  /* PREVIEW */
+  .preview-frame-wrap {
+    display: none;
+    margin-top: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .preview-frame-wrap.visible { display: block; }
+  .preview-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .preview-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .preview-dot.r { background: #FF5F57; }
+  .preview-dot.y { background: #FFBD2E; }
+  .preview-dot.g { background: #28C840; }
+  .preview-title { margin-left: 6px; font-size: 11px; color: var(--text-tertiary); font-weight: 400; }
+  .preview-frame {
+    width: 100%;
+    height: 640px;
+    border: none;
+  }
+
+  /* HIDDEN HELPER */
+  .hidden { display: none !important; }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 22px; }
+    .main { padding: 24px 16px 60px; }
+    .section { padding: 18px; }
+    .step-line { width: 28px; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .slide-title { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+    </svg>
+  </div>
+  <span class="nav-brand">LessonForge</span>
+  <span class="nav-sub">PDF to Interactive Lesson</span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Turn any document into<br>an interactive lesson</h1>
+    <p>Upload a PPTX or PDF and generate a self-contained, gamified HTML lesson with quizzes, activities, and progress tracking.</p>
+  </div>
+
+  <!-- STEPS BAR -->
+  <div class="steps-bar">
+    <div class="step-col">
+      <div class="step-circle active" id="stepCircle1">1</div>
+      <div class="step-label active" id="stepLabel1">Upload</div>
+    </div>
+    <div class="step-line" id="stepLine1"></div>
+    <div class="step-col">
+      <div class="step-circle" id="stepCircle2">2</div>
+      <div class="step-label" id="stepLabel2">Customise</div>
+    </div>
+    <div class="step-line" id="stepLine2"></div>
+    <div class="step-col">
+      <div class="step-circle" id="stepCircle3">3</div>
+      <div class="step-label" id="stepLabel3">Configure</div>
+    </div>
+    <div class="step-line" id="stepLine3"></div>
+    <div class="step-col">
+      <div class="step-circle" id="stepCircle4">4</div>
+      <div class="step-label" id="stepLabel4">Generate</div>
+    </div>
+    <div class="step-line" id="stepLine4"></div>
+    <div class="step-col">
+      <div class="step-circle" id="stepCircle5">5</div>
+      <div class="step-label" id="stepLabel5">Preview</div>
+    </div>
+  </div>
+
+  <!-- STEP 1: UPLOAD -->
+  <div class="section highlight" id="uploadSection">
+    <div class="section-label">Upload your document</div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon" id="dropzoneIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+      </div>
+      <h3 id="dropzoneTitle">Drop your file here</h3>
+      <p id="dropzoneDesc">PowerPoint (.pptx) or PDF — up to 100 MB</p>
+      <input type="file" accept=".pptx,.ppt,.pdf" id="fileInput">
+      <div class="file-info" id="fileInfo" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span id="fileName"></span>
+        <button class="remove-file" id="removeFile">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: ASSIGN IMAGES -->
+  <div class="slides-panel" id="slidesPanel">
+    <div class="section" id="slidesSection">
+      <div class="section-label">Customise slides <span style="font-weight:400;color:var(--text-tertiary)">(optional — add text notes or images per slide)</span></div>
+
+      <div class="extracting-state" id="extractingState">
+        <div class="spinner"></div>
+        <span>Extracting slide information...</span>
+      </div>
+
+      <div id="slideListWrap" style="display:none">
+        <div class="slides-summary">
+          <span><span class="count" id="slidesCount">0</span> slides found</span>
+          <span id="imagesAssigned">No customisations yet</span>
+        </div>
+        <ul class="slide-list" id="slideList"></ul>
+      </div>
+
+      <button class="secondary-btn" id="skipImagesBtn" onclick="skipImages()" style="display:none">
+        Skip — continue without customisations
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 3: CONFIGURE -->
+  <div class="section" id="configSection">
+    <div class="section-label">Configure</div>
+
+    <div class="input-group">
+      <label for="titleInput">Lesson title</label>
+      <div class="hint">Leave empty to auto-generate from content</div>
+      <input type="text" class="text-input" id="titleInput" placeholder="e.g., Introduction to Machine Learning">
+    </div>
+
+    <div class="input-group">
+      <label for="apiKey">Anthropic API key</label>
+      <div class="hint">Sent directly to the API, never stored. Get one at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+      <input type="password" class="text-input" id="apiKey" placeholder="sk-ant-...">
+    </div>
+
+    <div class="input-group">
+      <label for="elevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+      <div class="hint">Enables AI narration. Get a key at <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a></div>
+      <input type="password" class="text-input" id="elevenLabsKey" placeholder="xi-...">
+    </div>
+
+    <div class="input-group">
+      <label for="voiceSelect">Narration voice</label>
+      <select class="text-input" id="voiceSelect">
+        <option value="21m00Tcm4TlvDq8ikWAM">Rachel — Calm</option>
+        <option value="29vD33N1CtxCmqQRPOHJ">Drew — Professional</option>
+        <option value="EXAVITQu4vr4xnSDxMaL">Bella — Friendly</option>
+        <option value="ErXwobaYiN019PkySvjV">Antoni — Authoritative</option>
+        <option value="TxGEqnHWrfWFTfGW9XjX">Josh — Narrative</option>
+        <option value="pNInz6obpgDQGcFmaJgB">Adam — Resonant</option>
+        <option value="yoZ06aMxZJJ28mfd3POQ">Sam — Conversational</option>
+      </select>
+    </div>
+
+    <button class="primary-btn" id="convertBtn" disabled onclick="startConversion()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Generate lesson
+    </button>
+
+    <div class="error-msg" id="errorMsg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4m0 4h.01"/></svg>
+      <span id="errorText"></span>
+    </div>
+  </div>
+
+  <!-- PROGRESS SECTION -->
+  <div class="progress-section" id="progressSection">
+    <div class="section">
+      <div class="section-label">Generating your lesson</div>
+      <div class="progress-track">
+        <div class="progress-fill indeterminate" id="progressFill"></div>
+      </div>
+      <div class="progress-status">
+        <div class="spinner"></div>
+        <span id="progressText">Processing...</span>
+      </div>
+      <div class="status-steps">
+        <div class="status-step active" id="ss1">
+          <div class="step-icon">1</div>
+          <span>Extracting content...</span>
+        </div>
+        <div class="status-step" id="ss2">
+          <div class="step-icon">2</div>
+          <span>Analyzing structure...</span>
+        </div>
+        <div class="status-step" id="ss3">
+          <div class="step-icon">3</div>
+          <span>Building interactive slides...</span>
+        </div>
+        <div class="status-step" id="ss4">
+          <div class="step-icon">4</div>
+          <span>Creating quizzes and activities...</span>
+        </div>
+        <div class="status-step" id="ss5">
+          <div class="step-icon">5</div>
+          <span>Finalizing output...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result-card" id="resultCard">
+    <div class="result-icon">&#127891;</div>
+    <h3>Lesson ready</h3>
+    <p>Your interactive lesson has been generated.</p>
+    <div class="result-stats" id="resultStats"></div>
+    <div class="result-actions">
+      <a class="btn-preview" id="previewBtn" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Preview
+      </a>
+      <a class="btn-download" id="downloadBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Download
+      </a>
+      <button class="btn-regen" onclick="regenerate()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5"/><path stroke-linecap="round" stroke-linejoin="round" d="M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 013.51 15"/></svg>
+        Regenerate
+      </button>
+      <button class="btn-new" onclick="resetAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        New
+      </button>
+    </div>
+  </div>
+
+  <!-- INLINE PREVIEW -->
+  <div class="preview-frame-wrap" id="previewWrap">
+    <div class="preview-toolbar">
+      <div class="preview-dot r"></div>
+      <div class="preview-dot y"></div>
+      <div class="preview-dot g"></div>
+      <span class="preview-title" id="previewTitle">Lesson Preview</span>
+    </div>
+    <iframe class="preview-frame" id="previewFrame"></iframe>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="features" id="featuresRow">
+    <div class="feature">
+      <div class="f-icon">&#129504;</div>
+      <div class="f-title">AI-powered</div>
+      <div class="f-desc">Claude structures your content into an optimal learning flow</div>
+    </div>
+    <div class="feature">
+      <div class="f-icon">&#127918;</div>
+      <div class="f-title">Gamified</div>
+      <div class="f-desc">Quizzes, matching games, coins, and progress tracking</div>
+    </div>
+    <div class="feature">
+      <div class="f-icon">&#128241;</div>
+      <div class="f-title">Responsive</div>
+      <div class="f-desc">Works on any device with touch-friendly navigation</div>
+    </div>
+    <div class="feature">
+      <div class="f-icon">&#128230;</div>
+      <div class="f-title">Self-contained</div>
+      <div class="f-desc">Single HTML file, no dependencies, works offline</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const convertBtn = document.getElementById('convertBtn');
+const apiKeyInput = document.getElementById('apiKey');
+
+let selectedFile = null;
+let extractedSlides = [];
+let slideImageFiles = {};  // { slideIndex: File }
+let slideTextNotes = {};   // { slideIndex: "text note" }
+
+// ===== PERSIST API KEYS IN LOCALSTORAGE =====
+const STORAGE_KEYS = { api: 'lf_anthropic_key', el: 'lf_elevenlabs_key', voice: 'lf_voice', title: 'lf_title' };
+
+function loadSavedKeys() {
+  const saved = localStorage.getItem(STORAGE_KEYS.api);
+  if (saved) { apiKeyInput.value = saved; }
+  const elKey = localStorage.getItem(STORAGE_KEYS.el);
+  if (elKey) { document.getElementById('elevenLabsKey').value = elKey; }
+  const voice = localStorage.getItem(STORAGE_KEYS.voice);
+  if (voice) { document.getElementById('voiceSelect').value = voice; }
+  const title = localStorage.getItem(STORAGE_KEYS.title);
+  if (title) { document.getElementById('titleInput').value = title; }
+  checkReady();
+}
+
+function saveKeys() {
+  const apiVal = apiKeyInput.value.trim();
+  if (apiVal) localStorage.setItem(STORAGE_KEYS.api, apiVal);
+  else localStorage.removeItem(STORAGE_KEYS.api);
+
+  const elVal = document.getElementById('elevenLabsKey').value.trim();
+  if (elVal) localStorage.setItem(STORAGE_KEYS.el, elVal);
+  else localStorage.removeItem(STORAGE_KEYS.el);
+
+  localStorage.setItem(STORAGE_KEYS.voice, document.getElementById('voiceSelect').value);
+
+  const titleVal = document.getElementById('titleInput').value.trim();
+  if (titleVal) localStorage.setItem(STORAGE_KEYS.title, titleVal);
+  else localStorage.removeItem(STORAGE_KEYS.title);
+}
+
+// Save keys whenever they change
+apiKeyInput.addEventListener('input', () => { saveKeys(); checkReady(); });
+document.getElementById('elevenLabsKey').addEventListener('input', saveKeys);
+document.getElementById('voiceSelect').addEventListener('change', saveKeys);
+document.getElementById('titleInput').addEventListener('input', saveKeys);
+
+// Load on startup
+loadSavedKeys();
+
+const ALLOWED_TYPES = [
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+  'application/pdf'
+];
+const ALLOWED_EXT = ['.pptx', '.ppt', '.pdf'];
+
+function isAllowedFile(file) {
+  if (ALLOWED_TYPES.includes(file.type)) return true;
+  const name = file.name.toLowerCase();
+  return ALLOWED_EXT.some(ext => name.endsWith(ext));
+}
+
+// File selection
+fileInput.addEventListener('change', function(e) {
+  if (e.target.files.length > 0) selectFile(e.target.files[0]);
+});
+
+// Drag and drop
+dropzone.addEventListener('dragover', function(e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', function() { dropzone.classList.remove('dragover'); });
+dropzone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    if (isAllowedFile(file)) selectFile(file);
+  }
+});
+
+function selectFile(file) {
+  selectedFile = file;
+  dropzone.classList.add('has-file');
+  const ext = file.name.split('.').pop().toUpperCase();
+  document.getElementById('dropzoneTitle').textContent = ext + ' selected';
+  document.getElementById('dropzoneDesc').style.display = 'none';
+  document.getElementById('fileInfo').style.display = 'flex';
+  document.getElementById('fileName').textContent = file.name + ' (' + formatSize(file.size) + ')';
+
+  updateStep(1, 'done');
+  updateStep(2, 'active');
+
+  // Trigger slide extraction
+  extractSlides(file);
+  checkReady();
+}
+
+document.getElementById('removeFile').addEventListener('click', function(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  extractedSlides = [];
+  slideImageFiles = {};
+  slideTextNotes = {};
+  fileInput.value = '';
+  dropzone.classList.remove('has-file');
+  document.getElementById('dropzoneTitle').textContent = 'Drop your file here';
+  document.getElementById('dropzoneDesc').style.display = '';
+  document.getElementById('fileInfo').style.display = 'none';
+
+  // Hide slides panel
+  document.getElementById('slidesPanel').classList.remove('visible');
+
+  updateStep(1, 'active');
+  for (let i = 2; i <= 5; i++) {
+    updateStep(i, '');
+  }
+  checkReady();
+});
+
+// ===== SLIDE EXTRACTION & IMAGE ASSIGNMENT =====
+async function extractSlides(file) {
+  const panel = document.getElementById('slidesPanel');
+  const extractState = document.getElementById('extractingState');
+  const listWrap = document.getElementById('slideListWrap');
+  const skipBtn = document.getElementById('skipImagesBtn');
+
+  panel.classList.add('visible');
+  extractState.style.display = 'flex';
+  listWrap.style.display = 'none';
+  skipBtn.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/extract', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.error || 'Extraction failed');
+
+    extractedSlides = data.slides || [];
+    extractState.style.display = 'none';
+    listWrap.style.display = 'block';
+    skipBtn.style.display = '';
+
+    document.getElementById('slidesCount').textContent = extractedSlides.length;
+    renderSlideList();
+
+  } catch (err) {
+    extractState.innerHTML = '<span style="color:var(--error);font-size:13px">Could not extract slides: ' + err.message + '</span>';
+    skipBtn.style.display = '';
+  }
+}
+
+function renderSlideList() {
+  const list = document.getElementById('slideList');
+  list.innerHTML = '';
+
+  extractedSlides.forEach((slide, idx) => {
+    // Main row
+    const li = document.createElement('li');
+    li.style.cssText = 'list-style:none';
+    li.innerHTML = `
+      <div class="slide-row">
+        <div class="slide-number">${slide.slide_number}</div>
+        <div class="slide-title" title="${escapeHtml(slide.title)}">${escapeHtml(slide.title)}</div>
+        <div class="slide-actions">
+          <button class="slide-text-btn ${slideTextNotes[idx] ? 'has-text' : ''}" id="textBtn_${idx}" onclick="toggleSlideExpand(${idx})" title="Add text note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            ${slideTextNotes[idx] ? 'Edit text' : 'Add text'}
+          </button>
+          <div class="slide-image-slot">
+            <div class="slide-image-preview" id="imgPreview_${idx}">
+              <img class="slide-image-thumb" id="imgThumb_${idx}" src="" alt="">
+              <button class="slide-image-remove" onclick="removeSlideImage(${idx})" title="Remove image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <button class="slide-upload-btn" id="uploadBtn_${idx}" onclick="document.getElementById('imgInput_${idx}').click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              Add image
+            </button>
+            <input type="file" accept="image/*" class="slide-image-input" id="imgInput_${idx}" onchange="handleSlideImage(${idx}, this)">
+          </div>
+        </div>
+      </div>
+      <div class="slide-expand" id="slideExpand_${idx}">
+        <div class="slide-expand-row">
+          <div class="slide-expand-field">
+            <textarea id="slideText_${idx}" placeholder="Add extra details, instructions, or context for this slide..." oninput="handleSlideText(${idx}, this)">${escapeHtml(slideTextNotes[idx] || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `;
+    list.appendChild(li);
+
+    // Restore image preview if already assigned
+    if (slideImageFiles[idx]) {
+      const preview = li.querySelector('#imgPreview_' + idx);
+      const thumb = li.querySelector('#imgThumb_' + idx);
+      const btn = li.querySelector('#uploadBtn_' + idx);
+      thumb.src = URL.createObjectURL(slideImageFiles[idx]);
+      preview.classList.add('visible');
+      btn.classList.add('has-image');
+      const fname = slideImageFiles[idx].name;
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+        ${fname.length > 12 ? fname.substring(0, 12) + '...' : fname}
+      `;
+    }
+  });
+
+  updateCustomisedCount();
+}
+
+function toggleSlideExpand(idx) {
+  const expand = document.getElementById('slideExpand_' + idx);
+  const isVisible = expand.classList.contains('visible');
+  // Close all others
+  document.querySelectorAll('.slide-expand.visible').forEach(el => el.classList.remove('visible'));
+  if (!isVisible) {
+    expand.classList.add('visible');
+    const ta = document.getElementById('slideText_' + idx);
+    if (ta) ta.focus();
+  }
+}
+
+function handleSlideText(idx, textarea) {
+  const val = textarea.value.trim();
+  if (val) {
+    slideTextNotes[idx] = val;
+  } else {
+    delete slideTextNotes[idx];
+  }
+  // Update button label
+  const btn = document.getElementById('textBtn_' + idx);
+  if (btn) {
+    if (val) {
+      btn.classList.add('has-text');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit text`;
+    } else {
+      btn.classList.remove('has-text');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Add text`;
+    }
+  }
+  updateCustomisedCount();
+}
+
+function handleSlideImage(slideIdx, input) {
+  if (!input.files || !input.files[0]) return;
+
+  const file = input.files[0];
+  if (!file.type.startsWith('image/')) return;
+
+  slideImageFiles[slideIdx] = file;
+
+  const preview = document.getElementById('imgPreview_' + slideIdx);
+  const thumb = document.getElementById('imgThumb_' + slideIdx);
+  const btn = document.getElementById('uploadBtn_' + slideIdx);
+
+  thumb.src = URL.createObjectURL(file);
+  preview.classList.add('visible');
+  btn.classList.add('has-image');
+  btn.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+    ${file.name.length > 12 ? file.name.substring(0, 12) + '...' : file.name}
+  `;
+
+  updateCustomisedCount();
+}
+
+function removeSlideImage(slideIdx) {
+  delete slideImageFiles[slideIdx];
+
+  const preview = document.getElementById('imgPreview_' + slideIdx);
+  const btn = document.getElementById('uploadBtn_' + slideIdx);
+  const input = document.getElementById('imgInput_' + slideIdx);
+
+  preview.classList.remove('visible');
+  btn.classList.remove('has-image');
+  btn.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+    Add image
+  `;
+  input.value = '';
+
+  updateCustomisedCount();
+}
+
+function updateCustomisedCount() {
+  const imgCount = Object.keys(slideImageFiles).length;
+  const txtCount = Object.keys(slideTextNotes).length;
+  const parts = [];
+  if (imgCount) parts.push(imgCount + ' image' + (imgCount !== 1 ? 's' : ''));
+  if (txtCount) parts.push(txtCount + ' note' + (txtCount !== 1 ? 's' : ''));
+  document.getElementById('imagesAssigned').textContent = parts.length ? parts.join(', ') + ' added' : 'No customisations yet';
+}
+
+function skipImages() {
+  updateStep(2, 'done');
+  updateStep(3, 'active');
+  document.getElementById('configSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  checkReady();
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// ===== FORM LOGIC =====
+function checkReady() {
+  const ready = selectedFile && apiKeyInput.value.trim().length > 10;
+  convertBtn.disabled = !ready;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function updateStep(num, state) {
+  const circle = document.getElementById('stepCircle' + num);
+  const label = document.getElementById('stepLabel' + num);
+  if (!circle || !label) return;
+
+  circle.className = 'step-circle' + (state ? ' ' + state : '');
+  label.className = 'step-label' + (state === 'active' ? ' active' : '');
+
+  if (state === 'done') {
+    circle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+  } else if (!state || state === 'active') {
+    circle.textContent = num;
+  }
+
+  // Update lines
+  if (num > 1) {
+    const prevLine = document.getElementById('stepLine' + (num - 1));
+    if (prevLine && (state === 'active' || state === 'done')) {
+      prevLine.classList.add('done');
+    }
+  }
+}
+
+// ===== STATUS STEP ANIMATION =====
+let statusInterval;
+function animateStatusSteps() {
+  const steps = ['ss1', 'ss2', 'ss3', 'ss4', 'ss5'];
+  let current = 0;
+
+  function advance() {
+    if (current > 0) {
+      const prev = document.getElementById(steps[current - 1]);
+      prev.classList.remove('active');
+      prev.classList.add('done');
+      prev.querySelector('.step-icon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg>';
+    }
+    if (current < steps.length) {
+      document.getElementById(steps[current]).classList.add('active');
+      current++;
+    } else {
+      clearInterval(statusInterval);
+    }
+  }
+
+  advance();
+  statusInterval = setInterval(advance, 4000);
+}
+
+function completeStatusSteps() {
+  clearInterval(statusInterval);
+  ['ss1', 'ss2', 'ss3', 'ss4', 'ss5'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active');
+    el.classList.add('done');
+    el.querySelector('.step-icon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg>';
+  });
+}
+
+// ===== CONVERSION =====
+async function startConversion() {
+  if (!selectedFile || !apiKeyInput.value.trim()) return;
+
+  // Hide errors, show progress
+  document.getElementById('errorMsg').classList.remove('visible');
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('previewWrap').classList.remove('visible');
+  document.getElementById('progressSection').classList.add('visible');
+  document.getElementById('featuresRow').style.display = 'none';
+
+  convertBtn.disabled = true;
+  convertBtn.innerHTML = '<div class="spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Generating...';
+
+  updateStep(3, 'done');
+  updateStep(4, 'active');
+
+  // Reset status steps
+  ['ss1', 'ss2', 'ss3', 'ss4', 'ss5'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active', 'done');
+    el.querySelector('.step-icon').textContent = id.replace('ss', '');
+  });
+  animateStatusSteps();
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('api_key', apiKeyInput.value.trim());
+  formData.append('title', document.getElementById('titleInput').value.trim());
+  formData.append('elevenlabs_key', document.getElementById('elevenLabsKey').value.trim());
+  formData.append('elevenlabs_voice', document.getElementById('voiceSelect').value);
+
+  // Append slide-specific image assignments
+  const assignmentMap = {};
+  Object.keys(slideImageFiles).forEach(slideIdx => {
+    const fieldName = 'slide_image_' + slideIdx;
+    formData.append(fieldName, slideImageFiles[slideIdx]);
+    assignmentMap[slideIdx] = fieldName;
+  });
+  if (Object.keys(assignmentMap).length > 0) {
+    formData.append('image_assignments', JSON.stringify(assignmentMap));
+  }
+
+  // Append per-slide text notes
+  if (Object.keys(slideTextNotes).length > 0) {
+    formData.append('slide_text_notes', JSON.stringify(slideTextNotes));
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
+    const response = await fetch('/convert', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Conversion failed');
+    }
+
+    // Success
+    completeStatusSteps();
+    document.getElementById('progressFill').classList.remove('indeterminate');
+    document.getElementById('progressFill').style.width = '100%';
+    document.getElementById('progressText').textContent = 'Complete';
+
+    updateStep(4, 'done');
+    updateStep(5, 'active');
+
+    setTimeout(() => {
+      document.getElementById('resultCard').classList.add('visible');
+      document.getElementById('resultStats').innerHTML = `
+        <div class="result-stat"><div class="val">${data.pages_extracted}</div><div class="lbl">Pages</div></div>
+        <div class="result-stat"><div class="val">${data.images_extracted + (data.images_uploaded || 0)}</div><div class="lbl">Images</div></div>
+        <div class="result-stat"><div class="val">${Math.round(data.chars_extracted / 1000)}k</div><div class="lbl">Characters</div></div>
+      `;
+
+      document.getElementById('previewBtn').href = data.preview_url;
+      document.getElementById('downloadBtn').href = data.download_url;
+
+      document.getElementById('previewWrap').classList.add('visible');
+      document.getElementById('previewFrame').src = data.preview_url;
+      document.getElementById('previewTitle').textContent = selectedFile.name.replace(/\.(pdf|pptx|ppt)$/i, '') + ' — Lesson';
+
+      updateStep(5, 'done');
+    }, 500);
+
+  } catch (err) {
+    document.getElementById('errorMsg').classList.add('visible');
+    document.getElementById('errorText').textContent = err.message;
+    document.getElementById('progressSection').classList.remove('visible');
+    clearInterval(statusInterval);
+
+    convertBtn.disabled = false;
+    convertBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate lesson';
+    updateStep(4, 'active');
+  }
+}
+
+function regenerate() {
+  // Hide result and preview but keep the file + slides + customisations
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('previewWrap').classList.remove('visible');
+  document.getElementById('progressSection').classList.remove('visible');
+  document.getElementById('errorMsg').classList.remove('visible');
+
+  // Show the slides panel so user can edit text/images
+  document.getElementById('slidesPanel').classList.add('visible');
+  document.getElementById('slideListWrap').style.display = 'block';
+  document.getElementById('extractingState').style.display = 'none';
+  document.getElementById('skipImagesBtn').style.display = '';
+
+  // Re-render the slide list (preserves existing text notes and images)
+  renderSlideList();
+
+  // Reset steps to show step 2 (Customise) as active
+  updateStep(1, 'done');
+  updateStep(2, 'active');
+  updateStep(3, '');
+  updateStep(4, '');
+  updateStep(5, '');
+
+  // Reset the generate button
+  convertBtn.disabled = false;
+  convertBtn.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5"/><path stroke-linecap="round" stroke-linejoin="round" d="M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 013.51 15"/></svg>
+    Regenerate lesson
+  `;
+
+  // Scroll to the slides panel
+  document.getElementById('slidesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetAll() {
+  selectedFile = null;
+  extractedSlides = [];
+  slideImageFiles = {};
+  slideTextNotes = {};
+  fileInput.value = '';
+  document.getElementById('titleInput').value = '';
+  dropzone.classList.remove('has-file');
+  document.getElementById('dropzoneTitle').textContent = 'Drop your file here';
+  document.getElementById('dropzoneDesc').style.display = '';
+  document.getElementById('fileInfo').style.display = 'none';
+
+  document.getElementById('slidesPanel').classList.remove('visible');
+  document.getElementById('resultCard').classList.remove('visible');
+  document.getElementById('previewWrap').classList.remove('visible');
+  document.getElementById('progressSection').classList.remove('visible');
+  document.getElementById('errorMsg').classList.remove('visible');
+  document.getElementById('featuresRow').style.display = '';
+
+  // Reset steps
+  for (let i = 1; i <= 5; i++) {
+    const circle = document.getElementById('stepCircle' + i);
+    const label = document.getElementById('stepLabel' + i);
+    circle.className = 'step-circle' + (i === 1 ? ' active' : '');
+    circle.textContent = i;
+    label.className = 'step-label' + (i === 1 ? ' active' : '');
+    if (i > 1) {
+      const line = document.getElementById('stepLine' + (i - 1));
+      if (line) line.classList.remove('done');
+    }
+  }
+
+  convertBtn.disabled = true;
+  convertBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate lesson';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
