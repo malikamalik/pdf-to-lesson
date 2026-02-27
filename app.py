@@ -812,6 +812,9 @@ body[data-edit] .edit-btn{{display:flex}}
 .dl-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s}}
 .dl-btn:hover{{border-color:var(--b);color:var(--b)}}
 body[data-edit] .dl-btn{{display:flex}}
+.undo-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s;opacity:.35}}
+.undo-btn:hover{{border-color:var(--b);color:var(--b)}}
+body[data-edit] .undo-btn{{display:flex}}
 .edit-btn:hover{{border-color:var(--b);color:var(--b)}}
 .edit-panel{{position:fixed;inset:0;z-index:400;display:none}}
 .edit-panel.open{{display:flex}}
@@ -1153,7 +1156,7 @@ function R(){{
   let nav='';cats.forEach(c=>{{nav+=`<div class="dw-c">${{c}}</div>`;S.filter(x=>x.cat===c).forEach(x=>{{const idx=S.indexOf(x);const ico=x.t.startsWith('Quick')?'\\u2726':'\\u2022';nav+=`<button class="dw-i${{idx===cur?' on':''}}" onclick="go(${{idx}});cN()"><span class="dw-ico">${{ico}}</span>${{x.t}}</button>`}})}});
 
   document.getElementById('app').innerHTML=`
-    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><button class="dl-btn" onclick="downloadWithEdits()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
+    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="undo-btn" id="undo-btn" onclick="doUndo()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>Undo</button><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><button class="dl-btn" onclick="downloadWithEdits()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
     <div class="bar"><div class="bar-f" style="width:${{pct}}%"></div></div>
     <div class="ov" id="ov" onclick="cN()"></div><div class="dw" id="dw"><div class="dw-h">Lessons</div>${{nav}}</div>
     <div class="ct ${{cur>=prevCur?'entering':'entering-back'}}" id="cn"><h1 class="an">${{s.t}}</h1>${{s.s?`<p class="sub an">${{s.s}}</p>`:'<div style="height:20px"></div>'}}\n${{s.r()}}</div>
@@ -1258,6 +1261,42 @@ function showWelcome(){{
 }}
 function startListenMode(){{listenMode=true;unlockAudio();closeWelcome();speakSlide()}}
 function closeWelcome(){{const m=document.getElementById('welcome-modal');if(m){{m.style.opacity='0';m.style.transition='opacity .25s';setTimeout(()=>m.remove(),260)}}}}
+
+// ── UNDO HISTORY ──
+const undoStack=[];
+const UNDO_MAX=30;
+function pushUndo(){{
+  undoStack.push({{
+    slidesData:JSON.parse(JSON.stringify(slidesData)),
+    images:JSON.parse(JSON.stringify(IMAGES)),
+    sArr:S.map(s=>({{t:s.t,s:s.s,narr:s.narr,cat:s.cat}}))
+  }});
+  if(undoStack.length>UNDO_MAX)undoStack.shift();
+  updateUndoBtn();
+}}
+function doUndo(){{
+  if(!undoStack.length)return;
+  const snap=undoStack.pop();
+  // Restore slidesData
+  for(let i=0;i<slidesData.length;i++){{
+    if(snap.slidesData[i])Object.assign(slidesData[i],snap.slidesData[i]);
+  }}
+  // Restore IMAGES
+  Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);
+  Object.assign(IMAGES,snap.images);
+  // Restore S array display fields
+  snap.sArr.forEach((s,i)=>{{if(S[i]){{S[i].t=s.t;S[i].s=s.s;S[i].narr=s.narr;S[i].cat=s.cat}}}});
+  // Rebuild renderers for content slides
+  slidesData.forEach((d,i)=>{{if((d.type||'content')==='content')S[i].r=function(){{return buildContentSlide(d)}}}});
+  // Clear audio cache
+  if(audioCache)Object.keys(audioCache).forEach(k=>delete audioCache[k]);
+  R();
+  updateUndoBtn();
+}}
+function updateUndoBtn(){{
+  const btn=document.getElementById('undo-btn');
+  if(btn)btn.style.opacity=undoStack.length?'1':'0.35';
+}}
 
 // ── DOWNLOAD WITH EDITS ──
 function downloadWithEdits(){{
@@ -1448,6 +1487,7 @@ async function aiSuggest(){{
         else if(nb[field]!==undefined){{el.value=nb[field]}}
       }});
       // Store new blocks so saveEdit picks them up
+      pushUndo();
       if(d.body)d.body.blocks=newBlocks;
     }}else if(tp==='quiz'&&updated.body){{
       const b=updated.body;
@@ -1548,6 +1588,7 @@ function editImgChange(input,imgIdx,bi){{
 }}
 
 function editImgDelete(bi,imgIdx){{
+  pushUndo();
   const d=slidesData[cur];
   const blocks=(d.body&&d.body.blocks)||[];
   if(blocks[bi]){{delete blocks[bi].image_idx}}
@@ -1568,6 +1609,7 @@ function editAddImageDone(input){{
   const file=input.files[0];
   const reader=new FileReader();
   reader.onload=function(e){{
+    pushUndo();
     const dataUri=e.target.result;
     // Find next available IMAGES index
     let imgIdx=0;
@@ -1590,6 +1632,7 @@ function editAddImageDone(input){{
 }}
 
 function saveEdit(){{
+  pushUndo();
   const d=slidesData[cur];
   const tp=d.type||'content';
 
