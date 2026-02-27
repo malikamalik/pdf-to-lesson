@@ -963,7 +963,9 @@ function renderBlock(b){{
     const idx=b.image_idx;
     if(idx!==undefined && IMAGES[idx]){{
       const alt=b.alt||b.caption||'';
-      return `<div class="img-frame an"><img src="${{IMAGES[idx]}}" alt="${{alt}}" loading="lazy">${{alt?`<div class="img-frame-label">${{alt}}</div>`:''}}</div>`;
+      const isVid=IMAGES[idx].startsWith('data:video/');
+      const media=isVid?`<video src="${{IMAGES[idx]}}" controls playsinline style="width:100%;display:block"></video>`:`<img src="${{IMAGES[idx]}}" alt="${{alt}}" loading="lazy">`;
+      return `<div class="img-frame an">${{media}}${{alt?`<div class="img-frame-label">${{alt}}</div>`:''}}</div>`;
     }}
     return '';
   }}
@@ -1359,9 +1361,11 @@ function openEdit(){{
           blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Heading</div><input class="edit-input" data-bi="${{bi}}" data-field="text" value="${{(b.text||b.content||'').replace(/"/g,'&quot;')}}"></div>`;
         }}else if(k==='image'){{
           const imgIdx=b.image_idx;
-          const hasImg=imgIdx!==undefined&&IMAGES[imgIdx];
-          blocksHtml+=`<div class="edit-block" id="edit-img-block-${{bi}}"><div class="edit-block-kind">Image</div><div class="edit-img-slot" id="edit-img-slot-${{bi}}" onclick="this.querySelector('input').click()"><input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx!==undefined?imgIdx:'null'}},${{bi}})">${{hasImg?`<img src="${{IMAGES[imgIdx]}}">`:
-          `<div class="placeholder">Click to upload image</div>`}}</div><div class="edit-img-actions">${{hasImg?`<button class="edit-img-del" onclick="editImgDelete(${{bi}},${{imgIdx!==undefined?imgIdx:'null'}})">Delete image</button>`:''}}</div><input class="edit-input" style="margin-top:6px" data-bi="${{bi}}" data-field="alt" placeholder="Image description" value="${{(b.alt||b.caption||'').replace(/"/g,'&quot;')}}"></div>`;
+          const hasMedia=imgIdx!==undefined&&IMAGES[imgIdx];
+          const isVid=hasMedia&&IMAGES[imgIdx].startsWith('data:video/');
+          const preview=hasMedia?(isVid?`<video src="${{IMAGES[imgIdx]}}" controls playsinline style="max-width:100%;max-height:200px"></video>`:`<img src="${{IMAGES[imgIdx]}}">`):
+          `<div class="placeholder">Click to upload image or video</div>`;
+          blocksHtml+=`<div class="edit-block" id="edit-img-block-${{bi}}"><div class="edit-block-kind">${{isVid?'Video':'Image'}}</div><div class="edit-img-slot" id="edit-img-slot-${{bi}}" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,video/mp4,video/webm" style="display:none" onchange="editImgChange(this,${{imgIdx!==undefined?imgIdx:'null'}},${{bi}})">${{preview}}</div><div class="edit-img-actions">${{hasMedia?`<button class="edit-img-del" onclick="editImgDelete(${{bi}},${{imgIdx!==undefined?imgIdx:'null'}})">Delete</button>`:''}}</div><input class="edit-input" style="margin-top:6px" data-bi="${{bi}}" data-field="alt" placeholder="Description" value="${{(b.alt||b.caption||'').replace(/"/g,'&quot;')}}"></div>`;
         }}else if(k==='table'){{
           blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Table (headers)</div><input class="edit-input" data-bi="${{bi}}" data-field="headers" data-type="csv" value="${{(b.headers||[]).join(', ')}}"><div class="edit-label" style="margin-top:8px">Rows (comma-separated, one row per line)</div><textarea class="edit-input" rows="${{Math.max(2,(b.rows||[]).length+1)}}" data-bi="${{bi}}" data-field="rows" data-type="table">${{(b.rows||[]).map(r=>r.join(', ')).join('\\n')}}</textarea></div>`;
         }}
@@ -1399,7 +1403,7 @@ function openEdit(){{
     <div class="edit-section"><div class="edit-label">Title</div><input class="edit-input" id="edit-title" value="${{(d.t||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="edit-label">Subtitle</div><input class="edit-input" id="edit-sub" value="${{(d.s||'').replace(/"/g,'&quot;')}}"></div>
     <div class="edit-section"><div class="narr-header"><div class="edit-label">Narration (voice-over text)</div><button class="narr-regen" id="narr-regen-btn" onclick="regenNarration()"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Rewrite with AI</button></div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
-    ${{tp==='content'?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}<button class="edit-add-img" onclick="editAddImage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> Add Image</button><input type="file" accept="image/*" id="edit-add-img-input" style="display:none" onchange="editAddImageDone(this)"></div>`:(blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:'')}}
+    ${{tp==='content'?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}<button class="edit-add-img" onclick="editAddImage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> Add Image / Video</button><input type="file" accept="image/*,video/mp4,video/webm" id="edit-add-img-input" style="display:none" onchange="editAddImageDone(this)"></div>`:(blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:'')}}
     <button class="edit-save" onclick="saveEdit()">Save Changes</button>
     <div style="height:20px"></div>
   </div>`;
@@ -1573,7 +1577,7 @@ function editImgChange(input,imgIdx,bi){{
   const reader=new FileReader();
   reader.onload=function(e){{
     const dataUri=e.target.result;
-    // Store new image
+    // Store new media
     if(imgIdx===null||imgIdx===undefined){{imgIdx=Object.keys(IMAGES).length;while(IMAGES[imgIdx])imgIdx++}}
     IMAGES[imgIdx]=dataUri;
     // Update block
@@ -1582,7 +1586,9 @@ function editImgChange(input,imgIdx,bi){{
     if(blocks[bi]){{blocks[bi].image_idx=imgIdx}}
     // Update preview
     const slot=input.parentElement;
-    slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx}},${{bi}})"><img src="${{dataUri}}">`;
+    const isVid=dataUri.startsWith('data:video/');
+    const mediaEl=isVid?`<video src="${{dataUri}}" controls playsinline style="max-width:100%;max-height:200px"></video>`:`<img src="${{dataUri}}">`;
+    slot.innerHTML=`<input type="file" accept="image/*,video/mp4,video/webm" style="display:none" onchange="editImgChange(this,${{imgIdx}},${{bi}})">${{mediaEl}}`;
   }};
   reader.readAsDataURL(file);
 }}
@@ -1595,7 +1601,7 @@ function editImgDelete(bi,imgIdx){{
   if(imgIdx!==null&&imgIdx!==undefined){{delete IMAGES[imgIdx]}}
   // Update UI
   const slot=document.getElementById('edit-img-slot-'+bi);
-  if(slot){{slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,null,${{bi}})"><div class="placeholder">Click to upload image</div>`}}
+  if(slot){{slot.innerHTML=`<input type="file" accept="image/*,video/mp4,video/webm" style="display:none" onchange="editImgChange(this,null,${{bi}})"><div class="placeholder">Click to upload image or video</div>`}}
   const actions=slot&&slot.nextElementSibling;
   if(actions)actions.innerHTML='';
 }}
