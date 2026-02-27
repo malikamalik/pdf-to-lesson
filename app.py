@@ -807,6 +807,28 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 .listen-badge.off .eq i{{animation:none;height:3px}}
 .listen-badge.off{{background:var(--s1);border-color:var(--s2);color:var(--c3)}}
 
+.edit-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s}}
+.edit-btn:hover{{border-color:var(--b);color:var(--b)}}
+.edit-panel{{position:fixed;inset:0;z-index:400;display:none}}
+.edit-panel.open{{display:flex}}
+.edit-ov{{position:absolute;inset:0;background:rgba(0,0,0,.3);backdrop-filter:blur(4px)}}
+.edit-drawer{{position:absolute;right:0;top:0;bottom:0;width:min(440px,92vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);overflow-y:auto;animation:editIn .3s ease both;display:flex;flex-direction:column}}
+@keyframes editIn{{from{{transform:translateX(100%)}}to{{transform:translateX(0)}}}}
+.edit-drawer h3{{font-size:15px;font-weight:600;color:var(--c1);padding:20px 20px 0;margin:0}}
+.edit-section{{padding:14px 20px;border-bottom:1px solid var(--s1)}}
+.edit-section:last-child{{border-bottom:none}}
+.edit-label{{font-size:11px;font-weight:600;color:var(--c3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
+.edit-input{{width:100%;padding:8px 12px;border:1px solid var(--s2);border-radius:8px;font-size:13px;font-family:inherit;color:var(--c1);resize:vertical;transition:border-color .2s}}
+.edit-input:focus{{outline:none;border-color:var(--b)}}
+.edit-img-slot{{width:100%;min-height:60px;border:2px dashed var(--s2);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;overflow:hidden;position:relative;margin-top:6px}}
+.edit-img-slot:hover{{border-color:var(--b);background:var(--b06)}}
+.edit-img-slot img{{max-width:100%;max-height:200px;object-fit:contain}}
+.edit-img-slot .placeholder{{font-size:12px;color:var(--c3);text-align:center;padding:12px}}
+.edit-save{{margin:16px 20px;padding:10px;background:var(--b);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}}
+.edit-save:hover{{opacity:.9}}
+.edit-block{{background:var(--s0);border:1px solid var(--s1);border-radius:10px;padding:12px;margin-bottom:10px}}
+.edit-block-kind{{font-size:10px;font-weight:600;color:var(--b);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
+
 @keyframes modalIn{{from{{opacity:0;transform:scale(.92) translateY(12px)}}to{{opacity:1;transform:scale(1) translateY(0)}}}}
 @keyframes modalBgIn{{from{{opacity:0}}to{{opacity:1}}}}
 .modal-bg{{position:fixed;inset:0;background:rgba(0,0,0,.25);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:300;display:flex;align-items:center;justify-content:center;animation:modalBgIn .3s ease both}}
@@ -1107,7 +1129,7 @@ function R(){{
   let nav='';cats.forEach(c=>{{nav+=`<div class="dw-c">${{c}}</div>`;S.filter(x=>x.cat===c).forEach(x=>{{const idx=S.indexOf(x);const ico=x.t.startsWith('Quick')?'\\u2726':'\\u2022';nav+=`<button class="dw-i${{idx===cur?' on':''}}" onclick="go(${{idx}});cN()"><span class="dw-ico">${{ico}}</span>${{x.t}}</button>`}})}});
 
   document.getElementById('app').innerHTML=`
-    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
+    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
     <div class="bar"><div class="bar-f" style="width:${{pct}}%"></div></div>
     <div class="ov" id="ov" onclick="cN()"></div><div class="dw" id="dw"><div class="dw-h">Lessons</div>${{nav}}</div>
     <div class="ct ${{cur>=prevCur?'entering':'entering-back'}}" id="cn"><h1 class="an">${{s.t}}</h1>${{s.s?`<p class="sub an">${{s.s}}</p>`:'<div style="height:20px"></div>'}}\n${{s.r()}}</div>
@@ -1212,6 +1234,163 @@ function showWelcome(){{
 }}
 function startListenMode(){{listenMode=true;unlockAudio();closeWelcome();speakSlide()}}
 function closeWelcome(){{const m=document.getElementById('welcome-modal');if(m){{m.style.opacity='0';m.style.transition='opacity .25s';setTimeout(()=>m.remove(),260)}}}}
+
+// ── EDIT MODE ──
+function openEdit(){{
+  const d=slidesData[cur];
+  const tp=d.type||'content';
+  let blocksHtml='';
+
+  if(tp==='content'){{
+    const blocks=(d.body&&d.body.blocks)||d.body||[];
+    if(Array.isArray(blocks)){{
+      blocks.forEach((b,bi)=>{{
+        const k=b.kind||b.type||'text';
+        if(k==='text'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Text</div><textarea class="edit-input" rows="3" data-bi="${{bi}}" data-field="html">${{(b.html||b.text||b.content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}}</textarea></div>`;
+        }}else if(k==='bullets'){{
+          const items=(b.items||[]).join('\\n');
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Bullet Points</div><textarea class="edit-input" rows="${{Math.max(3,(b.items||[]).length+1)}}" data-bi="${{bi}}" data-field="items" data-type="list">${{items}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One bullet per line</div></div>`;
+        }}else if(k==='tip'||k==='info'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">${{k==='tip'?'Tip':'Info'}}</div><textarea class="edit-input" rows="2" data-bi="${{bi}}" data-field="text">${{b.text||b.content||''}}</textarea></div>`;
+        }}else if(k==='steps'){{
+          const items=(b.items||[]).map(x=>x.label||x.text||x).join('\\n');
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Steps</div><textarea class="edit-input" rows="${{Math.max(3,(b.items||[]).length+1)}}" data-bi="${{bi}}" data-field="items" data-type="steps">${{items}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One step per line</div></div>`;
+        }}else if(k==='icons'){{
+          const items=(b.items||[]).map(x=>{{const l=x.label||x.text||'';const dd=x.desc||'';const ic=x.icon||'';return ic+'|'+l+'|'+dd}}).join('\\n');
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Icons</div><textarea class="edit-input" rows="${{Math.max(3,(b.items||[]).length+1)}}" data-bi="${{bi}}" data-field="items" data-type="icons">${{items}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">Format: emoji|label|description (one per line)</div></div>`;
+        }}else if(k==='compare'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Compare</div><div class="edit-label" style="margin-top:6px">Do This</div><textarea class="edit-input" rows="2" data-bi="${{bi}}" data-field="good">${{b.good||''}}</textarea><div class="edit-label" style="margin-top:8px">Not This</div><textarea class="edit-input" rows="2" data-bi="${{bi}}" data-field="bad">${{b.bad||''}}</textarea></div>`;
+        }}else if(k==='code'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Code</div><textarea class="edit-input" rows="3" data-bi="${{bi}}" data-field="text" style="font-family:monospace">${{b.code||b.text||''}}</textarea></div>`;
+        }}else if(k==='heading'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Heading</div><input class="edit-input" data-bi="${{bi}}" data-field="text" value="${{(b.text||b.content||'').replace(/"/g,'&quot;')}}"></div>`;
+        }}else if(k==='image'){{
+          const imgIdx=b.image_idx;
+          const hasImg=imgIdx!==undefined&&IMAGES[imgIdx];
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Image</div><div class="edit-img-slot" onclick="this.querySelector('input').click()"><input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx!==undefined?imgIdx:'null'}},${{bi}})">${{hasImg?`<img src="${{IMAGES[imgIdx]}}">`:
+          `<div class="placeholder">Click to upload image</div>`}}</div><input class="edit-input" style="margin-top:6px" data-bi="${{bi}}" data-field="alt" placeholder="Image description" value="${{(b.alt||b.caption||'').replace(/"/g,'&quot;')}}"></div>`;
+        }}else if(k==='table'){{
+          blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Table (headers)</div><input class="edit-input" data-bi="${{bi}}" data-field="headers" data-type="csv" value="${{(b.headers||[]).join(', ')}}"><div class="edit-label" style="margin-top:8px">Rows (comma-separated, one row per line)</div><textarea class="edit-input" rows="${{Math.max(2,(b.rows||[]).length+1)}}" data-bi="${{bi}}" data-field="rows" data-type="table">${{(b.rows||[]).map(r=>r.join(', ')).join('\\n')}}</textarea></div>`;
+        }}
+      }});
+    }}
+  }}else if(tp==='quiz'){{
+    const body=d.body||{{}};
+    const q=body.question||d.question||'';
+    const opts=body.options||d.options||[];
+    const ci=body.correct!==undefined?body.correct:(d.correct||0);
+    const ex=body.explanations||d.explanations||{{}};
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Question</div><textarea class="edit-input" rows="2" id="eq-q">${{q}}</textarea></div>`;
+    opts.forEach((o,i)=>{{
+      blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Option ${{i+1}} ${{i===ci?'(correct)':''}}</div><input class="edit-input" id="eq-o${{i}}" value="${{o.replace(/"/g,'&quot;')}}"></div>`;
+    }});
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Correct answer (0-${{opts.length-1}})</div><input class="edit-input" type="number" id="eq-ci" value="${{ci}}" min="0" max="${{opts.length-1}}"></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Explanation (correct)</div><textarea class="edit-input" rows="2" id="eq-exc">${{typeof ex==='string'?ex:(ex.correct||'')}}</textarea></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Explanation (wrong)</div><textarea class="edit-input" rows="2" id="eq-exw">${{typeof ex==='object'?(ex.wrong||''):''}}</textarea></div>`;
+  }}
+
+  const panel=document.createElement('div');
+  panel.className='edit-panel open';
+  panel.id='edit-panel';
+  panel.innerHTML=`<div class="edit-ov" onclick="closeEdit()"></div><div class="edit-drawer">
+    <h3>Edit Slide ${{cur+1}}</h3>
+    <div class="edit-section"><div class="edit-label">Title</div><input class="edit-input" id="edit-title" value="${{(d.t||'').replace(/"/g,'&quot;')}}"></div>
+    <div class="edit-section"><div class="edit-label">Subtitle</div><input class="edit-input" id="edit-sub" value="${{(d.s||'').replace(/"/g,'&quot;')}}"></div>
+    <div class="edit-section"><div class="edit-label">Narration (voice-over text)</div><textarea class="edit-input" id="edit-narr" rows="4">${{d.narration||''}}</textarea></div>
+    ${{blocksHtml?`<div class="edit-section"><div class="edit-label">Content Blocks</div>${{blocksHtml}}</div>`:''}}
+    <button class="edit-save" onclick="saveEdit()">Save Changes</button>
+    <div style="height:20px"></div>
+  </div>`;
+  document.body.appendChild(panel);
+}}
+
+function closeEdit(){{
+  const p=document.getElementById('edit-panel');
+  if(p){{p.querySelector('.edit-drawer').style.animation='editIn .2s ease reverse both';setTimeout(()=>p.remove(),200)}}
+}}
+
+function editImgChange(input,imgIdx,bi){{
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=function(e){{
+    const dataUri=e.target.result;
+    // Store new image
+    if(imgIdx===null||imgIdx===undefined){{imgIdx=Object.keys(IMAGES).length;while(IMAGES[imgIdx])imgIdx++}}
+    IMAGES[imgIdx]=dataUri;
+    // Update block
+    const d=slidesData[cur];
+    const blocks=(d.body&&d.body.blocks)||[];
+    if(blocks[bi]){{blocks[bi].image_idx=imgIdx}}
+    // Update preview
+    const slot=input.parentElement;
+    slot.innerHTML=`<input type="file" accept="image/*" style="display:none" onchange="editImgChange(this,${{imgIdx}},${{bi}})"><img src="${{dataUri}}">`;
+  }};
+  reader.readAsDataURL(file);
+}}
+
+function saveEdit(){{
+  const d=slidesData[cur];
+  const tp=d.type||'content';
+
+  d.t=document.getElementById('edit-title').value;
+  d.s=document.getElementById('edit-sub').value;
+  d.narration=document.getElementById('edit-narr').value;
+
+  // Update the S array
+  S[cur].t=d.t;
+  S[cur].s=d.s;
+  S[cur].narr=d.narration;
+
+  if(tp==='content'){{
+    const blocks=(d.body&&d.body.blocks)||[];
+    document.querySelectorAll('[data-bi]').forEach(el=>{{
+      const bi=parseInt(el.dataset.bi);
+      const field=el.dataset.field;
+      const dtype=el.dataset.type;
+      if(!blocks[bi])return;
+      if(dtype==='list'){{
+        blocks[bi].items=el.value.split('\\n').filter(x=>x.trim());
+      }}else if(dtype==='steps'){{
+        blocks[bi].items=el.value.split('\\n').filter(x=>x.trim()).map(x=>({{text:x}}));
+      }}else if(dtype==='icons'){{
+        blocks[bi].items=el.value.split('\\n').filter(x=>x.trim()).map(x=>{{const p=x.split('|');return{{icon:p[0]||'',label:p[1]||'',desc:p[2]||''}}}});
+      }}else if(dtype==='csv'){{
+        blocks[bi][field]=el.value.split(',').map(x=>x.trim());
+      }}else if(dtype==='table'){{
+        blocks[bi].rows=el.value.split('\\n').filter(x=>x.trim()).map(r=>r.split(',').map(c=>c.trim()));
+      }}else if(field==='html'){{
+        blocks[bi].html=el.value;blocks[bi].text=el.value;blocks[bi].content=el.value;
+      }}else if(field==='good'||field==='bad'){{
+        blocks[bi][field]=el.value;
+      }}else if(field==='alt'){{
+        blocks[bi].alt=el.value;blocks[bi].caption=el.value;
+      }}else{{
+        blocks[bi][field]=el.value;if(field==='text'){{blocks[bi].content=el.value;blocks[bi].code=el.value}}
+      }}
+    }});
+  }}else if(tp==='quiz'){{
+    const body=d.body||{{}};
+    body.question=document.getElementById('eq-q').value;
+    const opts=[];
+    for(let i=0;i<4;i++){{const el=document.getElementById('eq-o'+i);if(el)opts.push(el.value)}}
+    body.options=opts;
+    body.correct=parseInt(document.getElementById('eq-ci').value)||0;
+    body.explanations={{correct:document.getElementById('eq-exc').value,wrong:document.getElementById('eq-exw').value}};
+    d.body=body;
+  }}
+
+  // Clear audio cache for this slide (narration changed)
+  if(audioCache)delete audioCache[cur];
+
+  closeEdit();
+  // Rebuild the slide renderer for content slides
+  if(tp==='content'){{
+    S[cur].r=function(){{return buildContentSlide(d)}};
+  }}
+  R();
+}}
 
 // ── KEYS ──
 document.addEventListener('keydown',e=>{{if(e.key==='ArrowRight')go(cur+1);if(e.key==='ArrowLeft')go(cur-1)}});
