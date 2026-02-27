@@ -15,8 +15,14 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB max for PPTX
-app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "output")
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+# Vercel has read-only filesystem — use /tmp there
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+if IS_VERCEL:
+    app.config["UPLOAD_FOLDER"] = "/tmp"
+else:
+    app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "output")
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"pdf", "pptx", "ppt"}
 
@@ -721,7 +727,7 @@ const IMAGES={images_json};
 const COURSE_TITLE=`{course_title}`;
 
 // ── SVG CONSTANTS ──
-const coinSvg=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#F59E0B"/><path d="M12 6v12M9 9h6M9 15h6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const coinSvg=`<svg width="18" height="18" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="256" cy="256" r="256" fill="#fff"/><path d="M35.27 78.8c2.85-5.62 5.81-11 11.04-14.75 14.26-10.22 35.08-10.9 52.02-9.29 46.82 4.44 94 23.1 135.53 44.37 24.51 12.57 48.09 26.87 70.56 42.8 5.77 4.11 14.44 10.22 19.8 14.72 3.41 2.98 7.41 5.66 10.79 8.74.79.72 2.94 2.63 3.77 3.11 6.32-2.9 13.85-5.04 20.46-7.02 20.64-6.18 42.63-11.06 64.21-11.49 18.58-.37 42.62 2.35 51.44 21.3.42.91 1.03 2.01 1.58 2.84 1.16 1.63 1.72 3.15 2.72 4.7 2.76 4.32 5.09 8.81 7.67 13.22l14.16 24.5c7.32 12.75 12.81 19.38 9.89 35.2-2.42 13.12-8.08 22.62-14.88 33.76-3.01 4.63-8.02 11.83-11.83 15.75-1.05 1.59-1.97 2.57-3.19 4-9.51 11.12-20.16 21.58-30.91 31.49-2.32 2.1-11.93 10.76-14.06 11.69-1.55 1.46-3.23 2.87-4.93 4.16-10.66 8.1-21.8 17.08-33.01 24.4-2.14 1.31-13.78 9.3-15.06 9.68-12.55 7.9-27.52 16.94-40.76 23.58-1.34.97-14.13 7.46-16.12 8.2-11.28 5.28-22.46 10.62-34.09 15.1-3.17 1.23-6.46 2.43-9.57 3.77-2.5 1.29-14.06 5.12-17.05 6.02-17.53 5.31-29.48 8.78-47.93 11.97-3.89.8-16.46 2.39-20.02 2.08-10.47.66-18.56.24-28.86-1.82-21.21-4.24-25.55-15.37-35.34-32.4l-10.85-18.79c-3.36-5.91-7.09-12.75-10.67-18.43-.44-.98-2.43-4.3-3.13-5.4-3.06-4.87-4.53-10.34-4.59-16.11-.25-22.59 20.09-51.4 35.14-65.9-.63-.87-3.48-2.38-4.51-2.95-1.9-1.37-3.6-2.36-5.59-3.55-5.15-3.13-10.2-6.42-15.14-9.87-1.87-1.51-5.08-3.56-7.11-4.95-3.57-2.44-7.08-4.95-10.54-7.55-4.44-3.31-8.84-6.68-13.2-10.09-2.57-2.01-4.69-3.96-7.43-5.77-3.23-2.52-11.18-9.35-13.84-12.15-2.2-1.68-5.42-4.92-7.49-6.88-7.44-7.06-14.93-14.54-21.53-22.4-1.87-2.24-3.27-3.31-5.05-5.91-2.76-3.4-9.63-11.68-11.5-15.47C7.44 177.87-3.22 154.45 1.48 139.25c2.38-7.67 9.62-18.87 13.92-26.23 6.54-11.19 12.99-23.3 19.87-34.22z" fill="#FECD3E"/><path d="M35.27 78.8c2.85-5.62 5.81-11 11.04-14.75 14.26-10.22 35.08-10.9 52.02-9.29 46.82 4.44 94 23.1 135.53 44.37 24.51 12.57 48.09 26.87 70.56 42.8 5.77 4.11 14.44 10.22 19.8 14.72-.89.84-6.55 3.4-8.01 4.1-5.83 2.81-11.63 5.7-17.37 8.68-1.72.88-7.61 3.9-8.97 4.93l-.32-.05c-10.9 6.24-22.33 12.41-32.99 19.03-13.92 8.67-27.53 17.83-40.82 27.46l-.23.05c-8.65 6.57-17.38 12.94-25.67 19.97-1.25 1.06-3.03 2.68-4.37 3.51l.01.09c-11.52 9.16-25.39 22.71-35.5 33.24-2.78 2.95-5.5 5.96-8.14 9.04-1.43 1.65-5.68 6.97-7.15 7.9-1.89-1.36-3.59-2.36-5.59-3.55-5.15-3.13-10.2-6.42-15.14-9.87-1.87-1.51-5.08-3.56-7.11-4.95-3.57-2.44-7.08-4.95-10.54-7.55-4.44-3.31-8.84-6.68-13.2-10.09-2.57-2.01-4.69-3.96-7.43-5.77-3.23-2.52-11.18-9.35-13.84-12.15-2.2-1.68-5.42-4.92-7.49-6.88-7.44-7.06-14.93-14.54-21.53-22.4-1.87-2.24-3.27-3.31-5.05-5.91-2.76-3.4-9.63-11.68-11.5-15.47C7.44 177.87-3.22 154.45 1.48 139.25c2.38-7.67 9.62-18.87 13.92-26.23 6.54-11.19 12.99-23.3 19.87-34.22z" fill="#FECD3E"/><path d="M16.27 190.03C7.44 177.87-3.22 154.45 1.48 139.25c2.38-7.67 9.62-18.87 13.92-26.22 6.54-11.19 12.99-23.3 19.87-34.23.02.09.05.19.07.28.62 2.66-.23 5.47-.32 8.17-.2 6.4 1.41 13.03 3.54 19.02 16.66 46.69 80.87 96.59 122.47 123.15 5.06 3.23 10.16 6.39 15.32 9.46 2.79 1.66 6.5 3.7 9.14 5.46l.01.09c-11.52 9.16-25.39 22.71-35.5 33.24-2.78 2.95-5.5 5.96-8.14 9.04-1.43 1.65-5.68 6.97-7.15 7.9-1.89-1.36-3.59-2.36-5.59-3.55-5.15-3.13-10.2-6.42-15.14-9.87-1.87-1.51-5.08-3.56-7.11-4.95-3.57-2.44-7.08-4.95-10.54-7.54-4.44-3.32-8.84-6.68-13.2-10.09-2.57-2.01-4.69-3.96-7.43-5.77-3.23-2.52-11.18-9.36-13.84-12.15-2.2-1.68-5.42-4.92-7.49-6.88-7.44-7.06-14.93-14.54-21.53-22.4-1.87-2.24-3.27-3.31-5.05-5.9-2.76-3.4-9.63-11.68-11.5-15.48z" fill="#FEA02C"/><path d="M411.19 183.65c6.6-.63 16.5-.65 22.07 3.63 2.39 1.84 3.5 4.26 3.83 7.21.95 8.69-7.95 21.12-13.25 27.44C377.19 277.48 240.24 357.73 169.56 364.44c-6.71.41-16.38.66-21.82-4.11-2.09-1.83-3.36-4.41-3.54-7.18-.63-9.82 8.8-21.96 15.06-29.12C203.63 273.3 298.49 218.85 361.87 196.04c15.11-5.44 33.23-11.3 49.32-12.39z" fill="#FEA02C"/><path d="M365.18 81.86c1.6-.04 3.19-.11 4.79-.18-.12 5.9.19 12.78-.14 18.48 5.89-.2 12.35-.12 18.28-.16-.24 4.44-.06 10.24-.06 14.75-4.49-.02-14.6.24-18.45-.14.6 5.09.21 12.93.45 18.49-3.06-.14-6.62-.07-9.71-.08l-5.34.08c-.01-4.87-.25-14.01.18-18.57-5.18.71-12.45-.16-18.21.5-.07-5-.09-10.01-.05-15 5.66.15 12.94-.22 18.28.18-.43-4.49-.22-13.32-.24-18.17 3.4.03 6.79-.01 10.18-.11h.04zM34.1 298.96c4.86.14 10.09.03 14.98.02-.21 5.85.22 12.65-.19 18.27 5.69-.12 12.7.26 18.24-.26-.19 3.96-.19 11.19.13 15.04-5.31-.23-13.76.19-18.45-.22.2 1.91.45 17.16.13 18.4-4.45-.33-10.27-.13-14.82-.06-.08-1.3-.03-2.6-.01-3.9.1-4.85-.04-9.71.12-14.56-1.87.3-5.27.22-7.28.22-3.65-.02-7.29.03-10.94.15-.09-4.94-.03-10.13-.04-15.09 4.98.64 13.04.12 18.38.3-.35-3.48-.37-14.57-.28-18.3z" fill="#FEA02C"/></svg>`;
 const logoSvg=`<svg width="28" height="28" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#4E83FF"/><path d="M10 28L20 12L30 28" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 22L20 14L25 22" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="20" cy="10" r="2" fill="#fff"/></svg>`;
 const animCheck=`<span class="check-circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle class="circle-path" cx="12" cy="12" r="10" stroke="#16A34A" stroke-width="2"/><path class="check-path" d="M8 12.5l2.5 3 5.5-6" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
 
@@ -1044,8 +1050,8 @@ async function fetchElevenLabsAudio(text,slideIdx){{
       headers:{{'Content-Type':'application/json','xi-api-key':EL_API_KEY,'Accept':'audio/mpeg'}},
       body:JSON.stringify({{
         text:text,
-        model_id:'eleven_turbo_v2_5',
-        voice_settings:{{stability:0.5,similarity_boost:0.75,style:0.2,use_speaker_boost:true}}
+        model_id:EL_MODEL,
+        voice_settings:{{stability:0.5,similarity_boost:0.75,use_speaker_boost:true}}
       }})
     }});
     if(!resp.ok){{elAvailable=false;throw new Error('API '+resp.status)}}
@@ -1111,50 +1117,54 @@ function speakBrowserTTS(text,onEnd){{
   const chunks=splitTextForTTS(text);
   let idx=0;
   function speakNext(){{
-    if(idx>=chunks.length){{if(onEnd)onEnd();return}}
+    if(idx>=chunks.length||!listenMode){{if(onEnd)onEnd();return}}
     const utter=new SpeechSynthesisUtterance(chunks[idx]);
     utter.voice=getVoice();utter.rate=0.95;utter.pitch=1.0;utter.volume=1;
     utter.onend=()=>{{idx++;speakNext()}};
-    utter.onerror=()=>{{speaking=false}};
+    utter.onerror=(e)=>{{console.warn('Browser TTS error:',e);speaking=false}};
     speechSynthesis.speak(utter);
   }}
-  speakNext();
+  // Delay first speak to avoid Chrome cancel/speak race condition
+  setTimeout(speakNext,100);
 }}
 
 async function speakSlide(){{
   stopAudio();
   if(!listenMode)return;
 
-  const s=S[cur];
+  const myCur=cur;
+  const s=S[myCur];
   let text=s.narr||s.t+'. '+(s.s||'');
   speaking=true;
 
   const badge=document.getElementById('listen-toggle');
   const setBadgeText=(t)=>{{if(badge){{const lt=badge.querySelector('.listen-text');if(lt)lt.textContent=t}}}};
+  const stale=()=>!listenMode||cur!==myCur;
 
   const onSlideEnd=()=>{{
     speaking=false;currentAudio=null;
+    if(stale())return;
     const isInteractive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
     if(!isInteractive&&cur<S.length-1){{autoTimer=setTimeout(()=>{{go(cur+1)}},800)}}
   }};
 
   // Try ElevenLabs first (only if already confirmed available or not yet tested)
   if(EL_API_KEY&&elAvailable!==false){{
-    // If cached, play instantly — no "Loading..." flash
-    if(audioCache[cur]){{
+    // If cached, play instantly
+    if(audioCache[myCur]){{
       setBadgeText('Listening');
-      const audio=new Audio(audioCache[cur]);
+      const audio=new Audio(audioCache[myCur]);
       currentAudio=audio;
       audio.onended=onSlideEnd;
       audio.onerror=()=>{{speaking=false;currentAudio=null}};
       try{{await audio.play()}}catch(e){{speaking=false;console.warn('Playback blocked:',e)}}
-      preCacheAhead(cur);
+      preCacheAhead(myCur);
       return;
     }}
     // Not cached — fetch with loading indicator
     setBadgeText('Loading...');
-    const audioUrl=await fetchElevenLabsAudio(text,cur);
-    if(!listenMode){{speaking=false;return}}
+    const audioUrl=await fetchElevenLabsAudio(text,myCur);
+    if(stale()){{speaking=false;return}}
 
     if(audioUrl){{
       setBadgeText('Listening');
@@ -1163,12 +1173,13 @@ async function speakSlide(){{
       audio.onended=onSlideEnd;
       audio.onerror=()=>{{speaking=false;currentAudio=null}};
       try{{await audio.play()}}catch(e){{speaking=false;console.warn('Playback blocked:',e)}}
-      preCacheAhead(cur);
+      preCacheAhead(myCur);
       return;
     }}
   }}
 
-  // Fallback: browser TTS (no delay)
+  // Fallback: browser TTS
+  if(stale()){{speaking=false;return}}
   setBadgeText('Listening');
   speakBrowserTTS(text,onSlideEnd);
 }}
@@ -1463,5 +1474,5 @@ def download(filename):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
-    debug = os.environ.get("RAILWAY_ENVIRONMENT") is None  # debug only locally
+    debug = not (os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("VERCEL"))
     app.run(debug=debug, host="0.0.0.0", port=port)

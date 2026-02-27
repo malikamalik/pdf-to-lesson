@@ -4,4 +4,3 @@ pdfplumber>=0.11
 python-pptx>=1.0
 python-dotenv>=1.0
 werkzeug>=3.0
-gunicorn>=22.0
