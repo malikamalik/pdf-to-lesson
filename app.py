@@ -6,8 +6,9 @@ import json
 import zipfile
 import hashlib
 import xml.etree.ElementTree as etree
+import concurrent.futures
 from pypdf import PdfReader
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from werkzeug.utils import secure_filename
 import urllib.request
 import urllib.error
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB max for PPTX
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB max for batch uploads
 
 # Vercel has read-only filesystem — use /tmp there
 IS_VERCEL = os.environ.get("VERCEL") == "1"
@@ -27,6 +28,16 @@ else:
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"pdf", "pptx", "ppt"}
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File(s) too large. Max total upload is 500MB."}), 413
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return jsonify({"error": f"Internal server error: {error}"}), 500
 
 
 def allowed_file(filename):
@@ -837,6 +848,10 @@ body[data-edit] .undo-btn{{display:flex}}
 .edit-img-slot .placeholder{{font-size:12px;color:var(--c3);text-align:center;padding:12px}}
 .edit-save{{margin:16px 20px;padding:10px;background:var(--b);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}}
 .edit-save:hover{{opacity:.9}}
+.edit-action-btn{{background:none;border:1px solid var(--s1);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--c2);cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:3px}}
+.edit-action-btn:hover{{background:var(--b06);border-color:var(--b);color:var(--b)}}
+.edit-action-btn:disabled{{opacity:.35;cursor:not-allowed}}
+.edit-action-btn:disabled:hover{{background:none;border-color:var(--s1);color:var(--c2)}}
 .edit-block{{background:var(--s0);border:1px solid var(--s1);border-radius:10px;padding:12px;margin-bottom:10px}}
 .edit-block-kind{{font-size:10px;font-weight:600;color:var(--b);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
 .edit-img-actions{{display:flex;gap:6px;margin-top:6px}}
@@ -1405,13 +1420,41 @@ function openEdit(){{
     blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Correct answer (0-${{opts.length-1}})</div><input class="edit-input" type="number" id="eq-ci" value="${{ci}}" min="0" max="${{opts.length-1}}"></div>`;
     blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Explanation (correct)</div><textarea class="edit-input" rows="2" id="eq-exc">${{typeof ex==='string'?ex:(ex.correct||'')}}</textarea></div>`;
     blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Explanation (wrong)</div><textarea class="edit-input" rows="2" id="eq-exw">${{typeof ex==='object'?(ex.wrong||''):''}}</textarea></div>`;
+  }}else if(tp==='matching'){{
+    const body=d.body||{{}};
+    const pairs=body.pairs||[];
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Matching Pairs</div><textarea class="edit-input" rows="${{Math.max(4,pairs.length+1)}}" id="eq-pairs">${{pairs.map(p=>(p.left||'')+' | '+(p.right||'')).join('\\n')}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One pair per line: left | right</div></div>`;
+  }}else if(tp==='prompt_builder'){{
+    const body=d.body||{{}};
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Instructions</div><textarea class="edit-input" rows="2" id="eq-pb-instr">${{body.instructions||''}}</textarea></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Chips</div><textarea class="edit-input" rows="${{Math.max(3,(body.chips||[]).length)}}" id="eq-pb-chips">${{(body.chips||[]).join('\\n')}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One chip per line</div></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Placeholder</div><input class="edit-input" id="eq-pb-ph" value="${{(body.placeholder||'').replace(/"/g,'&quot;')}}"></div>`;
+  }}else if(tp==='ordering'){{
+    const body=d.body||{{}};
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Instructions</div><textarea class="edit-input" rows="2" id="eq-ord-instr">${{body.instructions||''}}</textarea></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Correct Order</div><textarea class="edit-input" rows="${{Math.max(3,(body.correct_order||[]).length)}}" id="eq-ord-items">${{(body.correct_order||[]).join('\\n')}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One step per line (in correct order)</div></div>`;
+  }}else if(tp==='milestone'){{
+    const body=d.body||{{}};
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Emoji</div><input class="edit-input" id="eq-ms-emoji" value="${{(body.emoji||'').replace(/"/g,'&quot;')}}"></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Message</div><textarea class="edit-input" rows="2" id="eq-ms-msg">${{body.message||''}}</textarea></div>`;
+  }}else if(tp==='completion'){{
+    const body=d.body||{{}};
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Takeaways</div><textarea class="edit-input" rows="${{Math.max(3,(body.takeaways||[]).length+1)}}" id="eq-comp-ta">${{(body.takeaways||[]).join('\\n')}}</textarea><div style="font-size:10px;color:var(--c3);margin-top:4px">One takeaway per line</div></div>`;
+    blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Call to Action</div><input class="edit-input" id="eq-comp-cta" value="${{(body.cta||'').replace(/"/g,'&quot;')}}"></div>`;
   }}
 
   const panel=document.createElement('div');
   panel.className='edit-panel open';
   panel.id='edit-panel';
   panel.innerHTML=`<div class="edit-ov" onclick="closeEdit()"></div><div class="edit-drawer">
-    <h3>Edit Slide ${{cur+1}}</h3>
+    <h3>Edit Slide ${{cur+1}} <span style="font-size:11px;font-weight:400;background:var(--c5,#f3f4f6);padding:2px 8px;border-radius:4px;margin-left:6px">${{tp}}</span></h3>
+    <div class="edit-slide-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="edit-action-btn" onclick="moveSlide(-1)" title="Move up" ${{cur===0?'disabled':''}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg> Up</button>
+      <button class="edit-action-btn" onclick="moveSlide(1)" title="Move down" ${{cur>=slidesData.length-1?'disabled':''}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg> Down</button>
+      <button class="edit-action-btn" onclick="duplicateSlide()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Duplicate</button>
+      <button class="edit-action-btn" onclick="addSlideAfter()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 5v14m-7-7h14"/></svg> Add slide</button>
+      <button class="edit-action-btn" onclick="deleteSlide()" style="color:#ef4444;border-color:rgba(239,68,68,.3)" ${{slidesData.length<=1?'disabled':''}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete</button>
+    </div>
     <div class="ai-suggest-wrap">
       <div class="edit-label" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> AI Suggest</div>
       <div class="ai-suggest-row">
@@ -1434,6 +1477,62 @@ function openEdit(){{
 function closeEdit(){{
   const p=document.getElementById('edit-panel');
   if(p){{p.querySelector('.edit-drawer').style.animation='editIn .2s ease reverse both';setTimeout(()=>p.remove(),200)}}
+}}
+
+function rebuildAllSlides(){{
+  S=slidesData.map((d,i)=>{{
+    const tp=d.type||'content';
+    const entry={{t:d.t||'',s:d.s||'',narr:d.narration||'',cat:d.cat||''}};
+    if(tp==='content')entry.r=function(){{return buildContentSlide(d)}};
+    return entry;
+  }});
+  if(cur>=S.length)cur=S.length-1;
+  if(cur<0)cur=0;
+  R();
+}}
+
+function moveSlide(dir){{
+  const target=cur+dir;
+  if(target<0||target>=slidesData.length)return;
+  pushUndo();
+  const tmp=slidesData[cur];
+  slidesData[cur]=slidesData[target];
+  slidesData[target]=tmp;
+  cur=target;
+  closeEdit();
+  rebuildAllSlides();
+  setTimeout(()=>openEdit(),250);
+}}
+
+function duplicateSlide(){{
+  pushUndo();
+  const copy=JSON.parse(JSON.stringify(slidesData[cur]));
+  copy.t=(copy.t||'')+' (copy)';
+  slidesData.splice(cur+1,0,copy);
+  cur=cur+1;
+  closeEdit();
+  rebuildAllSlides();
+  setTimeout(()=>openEdit(),250);
+}}
+
+function addSlideAfter(){{
+  pushUndo();
+  const newSlide={{cat:'Content',t:'New Slide',s:'',narration:'',type:'content',body:{{blocks:[{{kind:'text',html:'Edit this slide content.'}}]}}}};
+  slidesData.splice(cur+1,0,newSlide);
+  cur=cur+1;
+  closeEdit();
+  rebuildAllSlides();
+  setTimeout(()=>openEdit(),250);
+}}
+
+function deleteSlide(){{
+  if(slidesData.length<=1)return;
+  if(!confirm('Delete slide '+(cur+1)+'?'))return;
+  pushUndo();
+  slidesData.splice(cur,1);
+  if(cur>=slidesData.length)cur=slidesData.length-1;
+  closeEdit();
+  rebuildAllSlides();
 }}
 
 async function callClaude(apiKey,slide,instruction){{
@@ -1714,17 +1813,44 @@ function saveEdit(){{
     body.correct=parseInt(document.getElementById('eq-ci').value)||0;
     body.explanations={{correct:document.getElementById('eq-exc').value,wrong:document.getElementById('eq-exw').value}};
     d.body=body;
+  }}else if(tp==='matching'){{
+    const body=d.body||{{}};
+    const pairsEl=document.getElementById('eq-pairs');
+    if(pairsEl){{
+      body.pairs=pairsEl.value.split('\\n').filter(x=>x.trim()).map(line=>{{
+        const parts=line.split('|').map(p=>p.trim());
+        return{{left:parts[0]||'',right:parts[1]||''}};
+      }});
+    }}
+    d.body=body;
+  }}else if(tp==='prompt_builder'){{
+    const body=d.body||{{}};
+    const instrEl=document.getElementById('eq-pb-instr');if(instrEl)body.instructions=instrEl.value;
+    const chipsEl=document.getElementById('eq-pb-chips');if(chipsEl)body.chips=chipsEl.value.split('\\n').filter(x=>x.trim());
+    const phEl=document.getElementById('eq-pb-ph');if(phEl)body.placeholder=phEl.value;
+    d.body=body;
+  }}else if(tp==='ordering'){{
+    const body=d.body||{{}};
+    const instrEl=document.getElementById('eq-ord-instr');if(instrEl)body.instructions=instrEl.value;
+    const itemsEl=document.getElementById('eq-ord-items');if(itemsEl)body.correct_order=itemsEl.value.split('\\n').filter(x=>x.trim());
+    d.body=body;
+  }}else if(tp==='milestone'){{
+    const body=d.body||{{}};
+    const emojiEl=document.getElementById('eq-ms-emoji');if(emojiEl)body.emoji=emojiEl.value;
+    const msgEl=document.getElementById('eq-ms-msg');if(msgEl)body.message=msgEl.value;
+    d.body=body;
+  }}else if(tp==='completion'){{
+    const body=d.body||{{}};
+    const taEl=document.getElementById('eq-comp-ta');if(taEl)body.takeaways=taEl.value.split('\\n').filter(x=>x.trim());
+    const ctaEl=document.getElementById('eq-comp-cta');if(ctaEl)body.cta=ctaEl.value;
+    d.body=body;
   }}
 
   // Clear audio cache for this slide (narration changed)
   if(audioCache)delete audioCache[cur];
 
   closeEdit();
-  // Rebuild the slide renderer for content slides
-  if(tp==='content'){{
-    S[cur].r=function(){{return buildContentSlide(d)}};
-  }}
-  R();
+  rebuildAllSlides();
 }}
 
 // ── KEYS ──
@@ -2089,6 +2215,140 @@ def preview(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 
+@app.route("/batch-convert", methods=["POST"])
+def batch_convert():
+    """Convert multiple PPTX/PDF files in parallel."""
+    api_key = request.form.get("api_key", "").strip()
+    if not api_key:
+        return jsonify({"error": "Please provide your Anthropic API key"}), 400
+
+    files = request.files.getlist("files")
+    if not files or len(files) == 0:
+        return jsonify({"error": "No files uploaded"}), 400
+
+    # Validate all files first
+    valid_files = []
+    for f in files:
+        if f.filename and allowed_file(f.filename):
+            valid_files.append(f)
+
+    if not valid_files:
+        return jsonify({"error": "No valid PPTX or PDF files found"}), 400
+
+    elevenlabs_key = request.form.get("elevenlabs_key", "").strip()
+    elevenlabs_voice = request.form.get("elevenlabs_voice", "").strip() or "EXAVITQu4vr4xnSDxMaL"
+
+    # Save all files to temp paths first (request.files can only be read once)
+    file_infos = []
+    for f in valid_files:
+        filename = secure_filename(f.filename)
+        ext = get_file_ext(filename)
+        temp_path = os.path.join(app.config["UPLOAD_FOLDER"], f"temp_{uuid.uuid4().hex}_{filename}")
+        f.save(temp_path)
+        file_infos.append({
+            "original_name": f.filename,
+            "filename": filename,
+            "ext": ext,
+            "temp_path": temp_path,
+        })
+
+    import time as _time
+
+    def convert_single(info, attempt=0):
+        """Convert a single file — runs in a thread."""
+        temp_path = info["temp_path"]
+        filename = info["filename"]
+        ext = info["ext"]
+        try:
+            if ext in ("pptx", "ppt"):
+                content_text = extract_pptx_text(temp_path)
+                auto_images = extract_pptx_images(temp_path)
+            else:
+                content_text = extract_pdf_text(temp_path)
+                auto_images = extract_pdf_images(temp_path)
+
+            if not content_text.strip():
+                return {"filename": info["original_name"], "error": "Could not extract text from this file."}
+
+            course_title = os.path.splitext(filename)[0].replace("-", " ").replace("_", " ").strip() or None
+
+            html_content = generate_lesson(
+                content_text, api_key, course_title,
+                elevenlabs_key=elevenlabs_key, elevenlabs_voice=elevenlabs_voice,
+                images=auto_images
+            )
+
+            output_name = f"lesson_{uuid.uuid4().hex[:8]}.html"
+            output_path = os.path.join(app.config["UPLOAD_FOLDER"], output_name)
+            with open(output_path, "w", encoding="utf-8") as out_f:
+                out_f.write(html_content)
+
+            return {
+                "filename": info["original_name"],
+                "output_name": output_name,
+                "preview_url": f"/preview/{output_name}",
+                "download_url": f"/download/{output_name}",
+                "success": True,
+            }
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")[:300]
+            # Retry on rate limit (429) or overloaded (529) up to 2 times
+            if e.code in (429, 529) and attempt < 2:
+                _time.sleep(15 * (attempt + 1))
+                return convert_single(info, attempt + 1)
+            return {"filename": info["original_name"], "error": f"API error {e.code}: {body}"}
+        except Exception as e:
+            return {"filename": info["original_name"], "error": str(e)}
+        finally:
+            # Only clean up on the original call, not retries
+            if attempt == 0 and os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    # Run conversions in parallel (max 2 to reduce API rate limit risk)
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {executor.submit(convert_single, info): info for info in file_infos}
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+
+    # Sort results back to original file order
+    order = {info["original_name"]: i for i, info in enumerate(file_infos)}
+    results.sort(key=lambda r: order.get(r["filename"], 999))
+
+    successful = [r for r in results if r.get("success")]
+    return jsonify({
+        "success": True,
+        "results": results,
+        "total": len(file_infos),
+        "completed": len(successful),
+        "failed": len(file_infos) - len(successful),
+    })
+
+
+@app.route("/batch-download-zip", methods=["POST"])
+def batch_download_zip():
+    """Download multiple lesson HTMLs as a single ZIP file."""
+    data = request.get_json()
+    if not data or "files" not in data:
+        return jsonify({"error": "No files specified"}), 400
+
+    filenames = data["files"]  # list of output_name strings
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in filenames:
+            filepath = os.path.join(app.config["UPLOAD_FOLDER"], fname)
+            if os.path.isfile(filepath):
+                # Use a cleaner name in the zip
+                zf.write(filepath, fname)
+
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="lessons.zip"'}
+    )
+
+
 @app.route("/download/<filename>")
 def download(filename):
     import re as _re
@@ -2099,12 +2359,112 @@ def download(filename):
         html = f.read()
     # Strip edit mode: remove data-edit attribute so edit button is hidden via CSS
     html = html.replace(' data-edit="1"', '')
-    from flask import Response
     return Response(
         html,
         mimetype="text/html",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+def scrape_url(url, timeout=30):
+    """Scrape text content from a URL."""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+
+        import re as _re
+        # Remove script/style tags and their content
+        raw = _re.sub(r'<script[^>]*>.*?</script>', ' ', raw, flags=_re.DOTALL | _re.IGNORECASE)
+        raw = _re.sub(r'<style[^>]*>.*?</style>', ' ', raw, flags=_re.DOTALL | _re.IGNORECASE)
+        # Remove HTML tags
+        raw = _re.sub(r'<[^>]+>', ' ', raw)
+        # Decode HTML entities
+        import html as _html_mod
+        raw = _html_mod.unescape(raw)
+        # Collapse whitespace
+        raw = _re.sub(r'\s+', ' ', raw).strip()
+        # Trim if very long
+        if len(raw) > 80000:
+            raw = raw[:80000] + "\n\n[... Content truncated ...]"
+        return raw
+    except Exception as e:
+        return f"[Error scraping {url}: {str(e)}]"
+
+
+@app.route("/topic-convert", methods=["POST"])
+def topic_convert():
+    """Generate a tutorial lesson from a topic description and scraped URLs."""
+    api_key = request.form.get("api_key", "").strip()
+    if not api_key:
+        return jsonify({"error": "Please provide your Anthropic API key"}), 400
+
+    topic = request.form.get("topic", "").strip()
+    description = request.form.get("description", "").strip()
+    urls_raw = request.form.get("urls", "").strip()
+
+    if not topic:
+        return jsonify({"error": "Please provide a topic"}), 400
+
+    # Parse URLs (one per line)
+    urls = [u.strip() for u in urls_raw.split("\n") if u.strip() and u.strip().startswith("http")]
+
+    # Scrape all URLs in parallel
+    scraped_content = ""
+    if urls:
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(scrape_url, url): url for url in urls}
+            for future in _cf.as_completed(futures):
+                url = futures[future]
+                text = future.result()
+                scraped_content += f"\n\n--- SOURCE: {url} ---\n{text}\n"
+
+    # Build combined content
+    combined = f"TOPIC: {topic}\n\n"
+    if description:
+        combined += f"DESCRIPTION & CONTEXT:\n{description}\n\n"
+    if scraped_content:
+        combined += f"REFERENCE DOCUMENTATION & CONTENT SCRAPED FROM URLS:\n{scraped_content}\n"
+
+    if not description and not scraped_content:
+        # No content at all — just a topic, let Claude generate from its knowledge
+        combined += "Generate a comprehensive tutorial on this topic using your knowledge.\n"
+
+    elevenlabs_key = request.form.get("elevenlabs_key", "").strip()
+    elevenlabs_voice = request.form.get("elevenlabs_voice", "").strip() or "EXAVITQu4vr4xnSDxMaL"
+
+    try:
+        slides_data = generate_slides_json(combined, api_key, course_title=topic)
+        html_content = build_html(slides_data, topic, elevenlabs_key=elevenlabs_key, elevenlabs_voice=elevenlabs_voice)
+
+        output_name = f"lesson_{uuid.uuid4().hex[:8]}.html"
+        output_path = os.path.join(app.config["UPLOAD_FOLDER"], output_name)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        return jsonify({
+            "success": True,
+            "filename": output_name,
+            "preview_url": f"/preview/{output_name}",
+            "download_url": f"/download/{output_name}",
+            "urls_scraped": len(urls),
+            "content_length": len(combined),
+        })
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:300]
+        return jsonify({"error": f"API error {e.code}: {body}"}), 500
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Failed to parse AI response as JSON. Try again. Detail: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

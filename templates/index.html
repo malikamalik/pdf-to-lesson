@@ -797,7 +797,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     overflow: hidden;
-    max-width: 360px;
+    max-width: 560px;
     margin-left: auto;
     margin-right: auto;
   }
@@ -850,6 +850,93 @@
     background: var(--success-bg);
     border-style: solid;
   }
+  /* BATCH TAB */
+  .batch-file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-light);
+    font-size: 13px;
+  }
+  .batch-file-item .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .batch-file-item .file-size {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  .batch-file-item .file-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+  }
+  .batch-file-item .file-remove:hover { color: var(--error); }
+  .batch-status {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .batch-status.pending { background: var(--bg); color: var(--text-tertiary); }
+  .batch-status.running { background: #EEF2FF; color: var(--accent); }
+  .batch-status.done { background: var(--success-bg); color: #16a34a; }
+  .batch-status.error { background: var(--error-bg); color: var(--error); }
+  .batch-result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-light);
+    font-size: 13px;
+  }
+  .batch-result-item .result-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .batch-result-item .result-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .batch-result-item .result-actions a {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .batch-result-item .result-actions .btn-sm-preview {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+  }
+  .batch-result-item .result-actions .btn-sm-download {
+    background: var(--success-bg);
+    color: #16a34a;
+    border: 1px solid rgba(34,197,94,0.2);
+  }
+  .batch-result-item .result-error {
+    font-size: 11px;
+    color: var(--error);
+  }
+
   .html-result {
     display: none;
     margin-top: 20px;
@@ -865,6 +952,7 @@
     .features { grid-template-columns: 1fr 1fr; }
     .slide-title { font-size: 12px; }
     .tab-bar { max-width: 100%; }
+    .tab-btn { padding: 10px 10px; font-size: 12px; }
   }
 </style>
 </head>
@@ -898,6 +986,14 @@
     <button class="tab-btn" id="tabEdit" onclick="switchTab('edit')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Edit HTML
+    </button>
+    <button class="tab-btn" id="tabBatch" onclick="switchTab('batch')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+      Batch
+    </button>
+    <button class="tab-btn" id="tabTopic" onclick="switchTab('topic')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      Topic
     </button>
   </div>
 
@@ -1169,6 +1265,170 @@
       </div>
     </div>
   </div><!-- end editTab -->
+
+  <!-- ====== BATCH TAB ====== -->
+  <div class="tab-content" id="batchTab">
+    <div class="section highlight">
+      <div class="section-label">Batch convert multiple files</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Upload multiple PPTX or PDF files and convert them to interactive lessons in parallel.</p>
+
+      <div class="html-dropzone" id="batchDropzone">
+        <div class="dropzone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <h3 id="batchDropzoneTitle">Drop multiple files here</h3>
+        <p id="batchDropzoneDesc">PowerPoint (.pptx) or PDF — select multiple files</p>
+        <input type="file" accept=".pptx,.ppt,.pdf" id="batchFileInput" multiple>
+      </div>
+
+      <!-- File list -->
+      <div id="batchFileList" style="display:none;margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:500" id="batchFileCount">0 files selected</span>
+          <button onclick="clearBatchFiles()" style="font-size:12px;color:var(--error);background:none;border:none;cursor:pointer;font-family:inherit">Clear all</button>
+        </div>
+        <ul id="batchFiles" style="list-style:none;display:flex;flex-direction:column;gap:6px"></ul>
+      </div>
+
+      <!-- Config -->
+      <div id="batchConfig" style="display:none;margin-top:20px;border-top:1px solid var(--border-light);padding-top:20px">
+        <div class="input-group">
+          <label for="batchApiKey">Anthropic API key</label>
+          <input type="password" class="text-input" id="batchApiKey" placeholder="sk-ant-...">
+        </div>
+        <div class="input-group">
+          <label for="batchElevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+          <input type="password" class="text-input" id="batchElevenLabsKey" placeholder="sk_...">
+        </div>
+
+        <button class="primary-btn" id="batchConvertBtn" onclick="startBatchConversion()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Convert all
+        </button>
+      </div>
+
+      <!-- Progress -->
+      <div id="batchProgress" style="display:none;margin-top:20px">
+        <div class="section-label">Converting...</div>
+        <ul id="batchProgressList" style="list-style:none;display:flex;flex-direction:column;gap:8px"></ul>
+      </div>
+
+      <!-- Results -->
+      <div id="batchResults" style="display:none;margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-label" style="margin:0" id="batchResultTitle">Done</div>
+          <button class="primary-btn" id="batchZipBtn" onclick="downloadBatchZip()" style="padding:8px 16px;font-size:12px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download all as ZIP
+          </button>
+        </div>
+        <ul id="batchResultList" style="list-style:none;display:flex;flex-direction:column;gap:8px"></ul>
+        <button class="btn-new" onclick="resetBatch()" style="margin-top:16px;width:100%">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          New batch
+        </button>
+      </div>
+    </div>
+  </div><!-- end batchTab -->
+
+  <!-- ====== TOPIC TAB ====== -->
+  <div class="tab-content" id="topicTab">
+    <div class="section highlight">
+      <div class="section-label">Create a tutorial from a topic</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">Describe a topic, paste documentation links, and we'll scrape the content and build an interactive follow-along tutorial.</p>
+
+      <div class="input-group">
+        <label for="topicTitle">Topic / Title</label>
+        <div class="hint">What is this tutorial about?</div>
+        <input type="text" class="text-input" id="topicTitle" placeholder="e.g., Building REST APIs with FastAPI">
+      </div>
+
+      <div class="input-group">
+        <label for="topicDesc">Description &amp; context <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+        <div class="hint">Add details about what you want covered, target audience, specific scenarios, follow-along steps, etc.</div>
+        <textarea class="text-input" id="topicDesc" rows="5" style="resize:vertical;min-height:100px" placeholder="e.g., Create a beginner-friendly tutorial that walks through building a REST API step by step. Include setup, creating endpoints, handling errors, and testing with curl. Target audience: junior developers."></textarea>
+      </div>
+
+      <div class="input-group">
+        <label for="topicUrls">Reference URLs <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+        <div class="hint">Paste documentation links, blog posts, or reference pages — one per line. We'll scrape the content and use it.</div>
+        <textarea class="text-input" id="topicUrls" rows="4" style="resize:vertical;min-height:80px;font-size:12px;font-family:monospace" placeholder="https://fastapi.tiangolo.com/tutorial/
+https://docs.python.org/3/library/typing.html
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods"></textarea>
+        <div id="topicUrlCount" style="font-size:11px;color:var(--text-tertiary);margin-top:4px"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border-light);padding-top:20px;margin-top:8px">
+        <div class="input-group">
+          <label for="topicApiKey">Anthropic API key</label>
+          <input type="password" class="text-input" id="topicApiKey" placeholder="sk-ant-...">
+        </div>
+        <div class="input-group">
+          <label for="topicElevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+          <input type="password" class="text-input" id="topicElevenLabsKey" placeholder="sk_...">
+        </div>
+      </div>
+
+      <button class="primary-btn" id="topicConvertBtn" onclick="startTopicConversion()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Generate tutorial
+      </button>
+
+      <div class="error-msg" id="topicErrorMsg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4m0 4h.01"/></svg>
+        <span id="topicErrorText"></span>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section" id="topicProgressSection">
+      <div class="section">
+        <div class="section-label">Building your tutorial</div>
+        <div class="progress-track">
+          <div class="progress-fill indeterminate" id="topicProgressFill"></div>
+        </div>
+        <div class="progress-status">
+          <div class="spinner"></div>
+          <span id="topicProgressText">Scraping reference URLs...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="topicResultCard">
+      <div class="result-icon">&#128218;</div>
+      <h3>Tutorial ready</h3>
+      <p>Your interactive tutorial has been generated.</p>
+      <div class="result-stats" id="topicResultStats"></div>
+      <div class="result-actions">
+        <a class="btn-preview" id="topicPreviewBtn" target="_blank">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Preview
+        </a>
+        <a class="btn-download" id="topicDownloadBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Download
+        </a>
+        <button class="btn-new" onclick="resetTopic()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          New
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline preview -->
+    <div class="preview-frame-wrap" id="topicPreviewWrap">
+      <div class="preview-toolbar">
+        <div class="preview-dot r"></div>
+        <div class="preview-dot y"></div>
+        <div class="preview-dot g"></div>
+        <span class="preview-title" id="topicPreviewTitle">Tutorial Preview</span>
+      </div>
+      <iframe class="preview-frame" id="topicPreviewFrame"></iframe>
+    </div>
+  </div><!-- end topicTab -->
 
 </div>
 
@@ -1726,10 +1986,11 @@ function resetAll() {
 
 // ===== TAB SWITCHING =====
 function switchTab(tab) {
-  document.getElementById('tabCreate').classList.toggle('active', tab === 'create');
-  document.getElementById('tabEdit').classList.toggle('active', tab === 'edit');
-  document.getElementById('createTab').classList.toggle('active', tab === 'create');
-  document.getElementById('editTab').classList.toggle('active', tab === 'edit');
+  ['Create','Edit','Batch','Topic'].forEach(t => {
+    const id = t.toLowerCase();
+    document.getElementById('tab'+t).classList.toggle('active', tab === id);
+    document.getElementById(id+'Tab').classList.toggle('active', tab === id);
+  });
 }
 
 // ===== HTML UPLOAD TAB =====
@@ -1814,6 +2075,392 @@ function resetHtmlUpload() {
   document.getElementById('htmlResult').classList.remove('visible');
   document.getElementById('htmlPreviewWrap').classList.remove('visible');
   document.getElementById('htmlUploadProgress').style.display = 'none';
+}
+
+// ===== BATCH TAB =====
+let batchFiles = [];
+let batchResults = [];
+
+const batchFileInput = document.getElementById('batchFileInput');
+const batchDropzone = document.getElementById('batchDropzone');
+
+// Load saved keys into batch fields
+function loadBatchKeys() {
+  const saved = localStorage.getItem(STORAGE_KEYS.api);
+  if (saved) document.getElementById('batchApiKey').value = saved;
+  const elKey = localStorage.getItem(STORAGE_KEYS.el);
+  if (elKey) document.getElementById('batchElevenLabsKey').value = elKey;
+  checkBatchReady();
+}
+loadBatchKeys();
+
+document.getElementById('batchApiKey').addEventListener('input', checkBatchReady);
+
+batchFileInput.addEventListener('change', function(e) {
+  if (e.target.files.length > 0) addBatchFiles(Array.from(e.target.files));
+});
+
+batchDropzone.addEventListener('click', function() { batchFileInput.click(); });
+batchDropzone.addEventListener('dragover', function(e) { e.preventDefault(); batchDropzone.classList.add('dragover'); });
+batchDropzone.addEventListener('dragleave', function() { batchDropzone.classList.remove('dragover'); });
+batchDropzone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  batchDropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    const files = Array.from(e.dataTransfer.files).filter(f => isAllowedFile(f));
+    if (files.length) addBatchFiles(files);
+  }
+});
+
+function addBatchFiles(files) {
+  files.forEach(f => {
+    if (isAllowedFile(f) && !batchFiles.some(bf => bf.name === f.name && bf.size === f.size)) {
+      batchFiles.push(f);
+    }
+  });
+  renderBatchFileList();
+  checkBatchReady();
+}
+
+function removeBatchFile(idx) {
+  batchFiles.splice(idx, 1);
+  renderBatchFileList();
+  checkBatchReady();
+}
+
+function clearBatchFiles() {
+  batchFiles = [];
+  batchFileInput.value = '';
+  renderBatchFileList();
+  checkBatchReady();
+}
+
+function renderBatchFileList() {
+  const list = document.getElementById('batchFiles');
+  const wrap = document.getElementById('batchFileList');
+  const config = document.getElementById('batchConfig');
+
+  if (batchFiles.length === 0) {
+    wrap.style.display = 'none';
+    config.style.display = 'none';
+    batchDropzone.classList.remove('has-file');
+    document.getElementById('batchDropzoneTitle').textContent = 'Drop multiple files here';
+    document.getElementById('batchDropzoneDesc').style.display = '';
+    return;
+  }
+
+  wrap.style.display = 'block';
+  config.style.display = 'block';
+  batchDropzone.classList.add('has-file');
+  document.getElementById('batchDropzoneTitle').textContent = batchFiles.length + ' file' + (batchFiles.length > 1 ? 's' : '') + ' selected';
+  document.getElementById('batchDropzoneDesc').style.display = 'none';
+  document.getElementById('batchFileCount').textContent = batchFiles.length + ' file' + (batchFiles.length > 1 ? 's' : '') + ' selected';
+
+  list.innerHTML = '';
+  batchFiles.forEach((f, i) => {
+    const ext = f.name.split('.').pop().toUpperCase();
+    const li = document.createElement('li');
+    li.className = 'batch-file-item';
+    li.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="file-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      <span class="file-size">${ext} &middot; ${formatSize(f.size)}</span>
+      <button class="file-remove" onclick="removeBatchFile(${i})" title="Remove">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function checkBatchReady() {
+  const apiKey = document.getElementById('batchApiKey').value.trim();
+  const ready = batchFiles.length > 0 && apiKey.length > 10;
+  document.getElementById('batchConvertBtn').disabled = !ready;
+}
+
+async function startBatchConversion() {
+  const apiKey = document.getElementById('batchApiKey').value.trim();
+  const elKey = document.getElementById('batchElevenLabsKey').value.trim();
+  if (!apiKey || batchFiles.length === 0) return;
+
+  // Save keys
+  if (apiKey) localStorage.setItem(STORAGE_KEYS.api, apiKey);
+  if (elKey) localStorage.setItem(STORAGE_KEYS.el, elKey);
+
+  // Show progress
+  document.getElementById('batchConfig').style.display = 'none';
+  document.getElementById('batchFileList').style.display = 'none';
+  const progressEl = document.getElementById('batchProgress');
+  const progressList = document.getElementById('batchProgressList');
+  progressEl.style.display = 'block';
+
+  // Render progress items
+  progressList.innerHTML = '';
+  batchFiles.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.className = 'batch-file-item';
+    li.id = 'batchProg_' + i;
+    li.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="file-name">${escapeHtml(f.name)}</span>
+      <span class="batch-status pending">Waiting</span>
+    `;
+    progressList.appendChild(li);
+  });
+
+  // Mark all as running
+  batchFiles.forEach((f, i) => {
+    const status = document.querySelector('#batchProg_' + i + ' .batch-status');
+    if (status) { status.className = 'batch-status running'; status.textContent = 'Converting...'; }
+  });
+
+  // Build form data
+  const formData = new FormData();
+  formData.append('api_key', apiKey);
+  formData.append('elevenlabs_key', elKey);
+  formData.append('elevenlabs_voice', 'EXAVITQu4vr4xnSDxMaL');
+  batchFiles.forEach(f => formData.append('files', f));
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 900000); // 15 min for batch
+    const resp = await fetch('/batch-convert', { method: 'POST', body: formData, signal: controller.signal });
+    clearTimeout(timeoutId);
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await resp.text();
+      throw new Error('Server returned an unexpected response (status ' + resp.status + '). Files may be too large.');
+    }
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.error || 'Batch conversion failed');
+
+    batchResults = data.results || [];
+
+    // Update progress items
+    batchResults.forEach((r, i) => {
+      // Find matching progress item by filename
+      const idx = batchFiles.findIndex(f => f.name === r.filename);
+      if (idx === -1) return;
+      const status = document.querySelector('#batchProg_' + idx + ' .batch-status');
+      if (!status) return;
+      if (r.success) {
+        status.className = 'batch-status done';
+        status.textContent = 'Done';
+      } else {
+        status.className = 'batch-status error';
+        status.textContent = 'Failed';
+      }
+    });
+
+    // Show results after a short delay
+    setTimeout(() => {
+      progressEl.style.display = 'none';
+      showBatchResults(data);
+    }, 800);
+
+  } catch (err) {
+    alert('Batch conversion failed: ' + err.message);
+    document.getElementById('batchConfig').style.display = 'block';
+    document.getElementById('batchFileList').style.display = 'block';
+    progressEl.style.display = 'none';
+  }
+}
+
+function showBatchResults(data) {
+  const resultsEl = document.getElementById('batchResults');
+  const resultList = document.getElementById('batchResultList');
+  const title = document.getElementById('batchResultTitle');
+
+  title.textContent = data.completed + ' of ' + data.total + ' converted successfully';
+  resultsEl.style.display = 'block';
+
+  // Hide zip button if nothing succeeded
+  document.getElementById('batchZipBtn').style.display = data.completed > 0 ? '' : 'none';
+
+  resultList.innerHTML = '';
+  (data.results || []).forEach(r => {
+    const li = document.createElement('li');
+    li.className = 'batch-result-item';
+    if (r.success) {
+      li.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="result-name" title="${escapeHtml(r.filename)}">${escapeHtml(r.filename)}</span>
+        <div class="result-actions">
+          <a class="btn-sm-preview" href="${r.preview_url}" target="_blank">Preview</a>
+          <a class="btn-sm-download" href="${r.download_url}">Download</a>
+        </div>
+      `;
+    } else {
+      li.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4m0 4h.01"/></svg>
+        <span class="result-name" title="${escapeHtml(r.filename)}">${escapeHtml(r.filename)}</span>
+        <span class="result-error">${escapeHtml(r.error || 'Unknown error')}</span>
+      `;
+    }
+    resultList.appendChild(li);
+  });
+}
+
+async function downloadBatchZip() {
+  const files = batchResults.filter(r => r.success).map(r => r.output_name);
+  if (files.length === 0) return;
+
+  const btn = document.getElementById('batchZipBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px;border-top-color:#fff;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Creating ZIP...';
+
+  try {
+    const resp = await fetch('/batch-download-zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    if (!resp.ok) throw new Error('ZIP creation failed');
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lessons.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Failed to create ZIP: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Download all as ZIP';
+  }
+}
+
+function resetBatch() {
+  batchFiles = [];
+  batchResults = [];
+  batchFileInput.value = '';
+  batchDropzone.classList.remove('has-file');
+  document.getElementById('batchDropzoneTitle').textContent = 'Drop multiple files here';
+  document.getElementById('batchDropzoneDesc').style.display = '';
+  document.getElementById('batchFileList').style.display = 'none';
+  document.getElementById('batchConfig').style.display = 'none';
+  document.getElementById('batchProgress').style.display = 'none';
+  document.getElementById('batchResults').style.display = 'none';
+  loadBatchKeys();
+}
+
+// ===== TOPIC TAB =====
+function loadTopicKeys() {
+  const saved = localStorage.getItem(STORAGE_KEYS.api);
+  if (saved) document.getElementById('topicApiKey').value = saved;
+  const elKey = localStorage.getItem(STORAGE_KEYS.el);
+  if (elKey) document.getElementById('topicElevenLabsKey').value = elKey;
+  checkTopicReady();
+}
+loadTopicKeys();
+
+document.getElementById('topicTitle').addEventListener('input', checkTopicReady);
+document.getElementById('topicApiKey').addEventListener('input', checkTopicReady);
+
+// Update URL count
+document.getElementById('topicUrls').addEventListener('input', function() {
+  const urls = this.value.split('\n').filter(u => u.trim() && u.trim().startsWith('http'));
+  const countEl = document.getElementById('topicUrlCount');
+  countEl.textContent = urls.length ? urls.length + ' URL' + (urls.length > 1 ? 's' : '') + ' detected' : '';
+});
+
+function checkTopicReady() {
+  const topic = document.getElementById('topicTitle').value.trim();
+  const apiKey = document.getElementById('topicApiKey').value.trim();
+  document.getElementById('topicConvertBtn').disabled = !(topic && apiKey.length > 10);
+}
+
+async function startTopicConversion() {
+  const topic = document.getElementById('topicTitle').value.trim();
+  const desc = document.getElementById('topicDesc').value.trim();
+  const urls = document.getElementById('topicUrls').value.trim();
+  const apiKey = document.getElementById('topicApiKey').value.trim();
+  const elKey = document.getElementById('topicElevenLabsKey').value.trim();
+
+  if (!topic || !apiKey) return;
+
+  // Save keys
+  if (apiKey) localStorage.setItem(STORAGE_KEYS.api, apiKey);
+  if (elKey) localStorage.setItem(STORAGE_KEYS.el, elKey);
+
+  // Show progress
+  document.getElementById('topicErrorMsg').classList.remove('visible');
+  document.getElementById('topicResultCard').classList.remove('visible');
+  document.getElementById('topicPreviewWrap').classList.remove('visible');
+  document.getElementById('topicProgressSection').classList.add('visible');
+  document.getElementById('topicConvertBtn').disabled = true;
+  document.getElementById('topicConvertBtn').innerHTML = '<div class="spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Generating...';
+
+  const urlCount = urls.split('\n').filter(u => u.trim() && u.trim().startsWith('http')).length;
+  document.getElementById('topicProgressText').textContent = urlCount > 0
+    ? 'Scraping ' + urlCount + ' URL' + (urlCount > 1 ? 's' : '') + ' and generating tutorial...'
+    : 'Generating tutorial...';
+
+  const formData = new FormData();
+  formData.append('topic', topic);
+  formData.append('description', desc);
+  formData.append('urls', urls);
+  formData.append('api_key', apiKey);
+  formData.append('elevenlabs_key', elKey);
+  formData.append('elevenlabs_voice', 'EXAVITQu4vr4xnSDxMaL');
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
+    const resp = await fetch('/topic-convert', { method: 'POST', body: formData, signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('Server returned an unexpected response (status ' + resp.status + ').');
+    }
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Generation failed');
+
+    // Hide progress, show result
+    document.getElementById('topicProgressSection').classList.remove('visible');
+    document.getElementById('topicProgressFill').classList.remove('indeterminate');
+
+    document.getElementById('topicResultCard').classList.add('visible');
+    document.getElementById('topicResultStats').innerHTML = `
+      <div class="result-stat"><div class="val">${data.urls_scraped || 0}</div><div class="lbl">URLs scraped</div></div>
+      <div class="result-stat"><div class="val">${Math.round((data.content_length || 0) / 1000)}k</div><div class="lbl">Characters</div></div>
+    `;
+
+    document.getElementById('topicPreviewBtn').href = data.preview_url;
+    document.getElementById('topicDownloadBtn').href = data.download_url;
+
+    document.getElementById('topicPreviewWrap').classList.add('visible');
+    document.getElementById('topicPreviewFrame').src = data.preview_url;
+    document.getElementById('topicPreviewTitle').textContent = topic + ' — Tutorial';
+
+  } catch (err) {
+    document.getElementById('topicProgressSection').classList.remove('visible');
+    document.getElementById('topicErrorMsg').classList.add('visible');
+    document.getElementById('topicErrorText').textContent = err.message;
+  } finally {
+    document.getElementById('topicConvertBtn').disabled = false;
+    document.getElementById('topicConvertBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate tutorial';
+    checkTopicReady();
+  }
+}
+
+function resetTopic() {
+  document.getElementById('topicTitle').value = '';
+  document.getElementById('topicDesc').value = '';
+  document.getElementById('topicUrls').value = '';
+  document.getElementById('topicUrlCount').textContent = '';
+  document.getElementById('topicResultCard').classList.remove('visible');
+  document.getElementById('topicPreviewWrap').classList.remove('visible');
+  document.getElementById('topicProgressSection').classList.remove('visible');
+  document.getElementById('topicErrorMsg').classList.remove('visible');
+  loadTopicKeys();
 }
 </script>
 </body>
