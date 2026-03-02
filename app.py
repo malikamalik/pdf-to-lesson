@@ -1765,6 +1765,16 @@ function editImgChange(input,imgIdx,bi){{
     const vid=dataUri.startsWith('data:video/');
     const mediaEl=vid?`<video src="${{src}}" controls playsinline style="max-width:100%;max-height:200px"></video>`:`<img src="${{src}}">`;
     slot.innerHTML=`<input type="file" accept="image/*,video/mp4,video/webm" style="display:none" onchange="editImgChange(this,${{imgIdx}},${{bi}})">${{mediaEl}}`;
+    // If video was added/replaced, update narration and clear audio cache
+    if(vid){{
+      const d2=slidesData[cur];
+      const narr=d2.narration||'';
+      if(!/video|watch|demo|action|look at/i.test(narr)){{
+        d2.narration=(narr.trim()?narr.trim()+' ':'')+'Now, let\\'s watch the video to see this in action.';
+        S[cur].narr=d2.narration;
+      }}
+      if(audioCache)delete audioCache[cur];
+    }}
   }};
   reader.readAsDataURL(file);
 }}
@@ -1816,6 +1826,15 @@ function editAddImageDone(input){{
       d.body.blocks.splice(parseInt(insertPos),0,newBlock);
     }}else{{
       d.body.blocks.push(newBlock);
+    }}
+    // If a video was added, auto-update narration and clear audio cache
+    if(dataUri.startsWith('data:video/')){{
+      const narr=d.narration||'';
+      if(!/video|watch|demo|action|look at/i.test(narr)){{
+        d.narration=(narr.trim()?narr.trim()+' ':'')+'Now, let\\'s watch the video to see this in action.';
+        S[cur].narr=d.narration;
+      }}
+      if(audioCache)delete audioCache[cur];
     }}
     input.value='';
     closeEdit();
