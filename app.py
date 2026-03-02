@@ -849,6 +849,10 @@ body[data-edit] .undo-btn{{display:flex}}
 .edit-img-slot .placeholder{{font-size:12px;color:var(--c3);text-align:center;padding:12px}}
 .edit-save{{margin:16px 20px;padding:10px;background:var(--b);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}}
 .edit-save:hover{{opacity:.9}}
+.edit-insert-media{{text-align:center;padding:4px 0;opacity:.4;transition:opacity .2s}}
+.edit-insert-media:hover{{opacity:1}}
+.edit-insert-btn{{background:none;border:1px dashed var(--s2);border-radius:6px;padding:4px 12px;font-size:10px;color:var(--c3);cursor:pointer;font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;gap:4px}}
+.edit-insert-btn:hover{{border-color:var(--b);color:var(--b);background:var(--b06)}}
 .edit-action-btn{{background:none;border:1px solid var(--s1);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--c2);cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:3px}}
 .edit-action-btn:hover{{background:var(--b06);border-color:var(--b);color:var(--b)}}
 .edit-action-btn:disabled{{opacity:.35;cursor:not-allowed}}
@@ -1214,15 +1218,6 @@ function R(){{
   setTimeout(()=>{{document.querySelectorAll('.an,.an2,.an3,.an4,.an5').forEach((el,i)=>{{setTimeout(()=>el.classList.add('go'),i*70)}})}},30);
   if(s.i)s.i();
   const cn=document.getElementById('cn');if(cn)cn.scrollTop=0;
-  // Auto-play videos on this slide after a short delay
-  setTimeout(()=>{{
-    const videos=document.querySelectorAll('.slide-video');
-    videos.forEach(v=>{{
-      v.muted=false;
-      v.currentTime=0;
-      v.play().catch(()=>{{}});
-    }});
-  }},600);
 }}
 function oN(){{document.getElementById('ov').classList.add('open');document.getElementById('dw').classList.add('open')}}
 function cN(){{document.getElementById('ov').classList.remove('open');document.getElementById('dw').classList.remove('open')}}
@@ -1287,12 +1282,14 @@ async function speakSlide(){{
     speaking=false;currentAudio=null;
     if(stale())return;
     const interactive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
-    // If slide has a video, don't auto-advance — let video play first
+    // If slide has a video, don't auto-advance — play video first
     const hasVideo=document.querySelector('.slide-video');
     if(hasVideo){{
       hasVideo.scrollIntoView({{behavior:'smooth',block:'center'}});
-      hasVideo.currentTime=0;hasVideo.play().catch(()=>{{}});
-      // Auto-advance after video ends
+      hasVideo.currentTime=0;
+      // Start muted to satisfy autoplay policy, then unmute
+      hasVideo.muted=true;
+      hasVideo.play().then(()=>{{hasVideo.muted=false}}).catch(()=>{{}});
       hasVideo.onended=()=>{{if(cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
       return;
     }}
@@ -1434,6 +1431,8 @@ function openEdit(){{
         }}else if(k==='table'){{
           blocksHtml+=`<div class="edit-block"><div class="edit-block-kind">Table (headers)</div><input class="edit-input" data-bi="${{bi}}" data-field="headers" data-type="csv" value="${{(b.headers||[]).join(', ')}}"><div class="edit-label" style="margin-top:8px">Rows (comma-separated, one row per line)</div><textarea class="edit-input" rows="${{Math.max(2,(b.rows||[]).length+1)}}" data-bi="${{bi}}" data-field="rows" data-type="table">${{(b.rows||[]).map(r=>r.join(', ')).join('\\n')}}</textarea></div>`;
         }}
+        // Insert media button after each block
+        blocksHtml+=`<div class="edit-insert-media"><button class="edit-insert-btn" onclick="insertMediaAt(${{bi+1}})"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 5v14m-7-7h14"/></svg> Insert image / video here</button></div>`;
       }});
     }}
   }}else if(tp==='quiz'){{
@@ -1762,29 +1761,37 @@ function editImgDelete(bi,imgIdx){{
 }}
 
 function editAddImage(){{
-  document.getElementById('edit-add-img-input').click();
+  const inp=document.getElementById('edit-add-img-input');
+  inp.dataset.insertAt='';
+  inp.click();
+}}
+
+function insertMediaAt(pos){{
+  const inp=document.getElementById('edit-add-img-input');
+  inp.dataset.insertAt=pos;
+  inp.click();
 }}
 
 function editAddImageDone(input){{
   if(!input.files||!input.files[0])return;
+  const insertPos=input.dataset.insertAt;
   const file=input.files[0];
   const reader=new FileReader();
   reader.onload=function(e){{
     pushUndo();
     const dataUri=e.target.result;
-    // Find next available IMAGES index
     let imgIdx=0;
     while(IMAGES[imgIdx])imgIdx++;
     IMAGES[imgIdx]=dataUri;
-
-    // Add image block to slide data
     const d=slidesData[cur];
     if(!d.body)d.body={{}};
     if(!d.body.blocks)d.body.blocks=[];
-    const bi=d.body.blocks.length;
-    d.body.blocks.push({{kind:'image',image_idx:imgIdx,alt:''}});
-
-    // Rebuild the edit panel to show the new image block
+    const newBlock={{kind:'image',image_idx:imgIdx,alt:''}};
+    if(insertPos!==undefined&&insertPos!==''){{
+      d.body.blocks.splice(parseInt(insertPos),0,newBlock);
+    }}else{{
+      d.body.blocks.push(newBlock);
+    }}
     input.value='';
     closeEdit();
     setTimeout(()=>openEdit(),250);
