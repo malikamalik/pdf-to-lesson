@@ -2254,7 +2254,7 @@ Return the updated slide JSON only."""
 
 @app.route("/upload-html", methods=["POST"])
 def upload_html():
-    """Accept an HTML lesson file upload for editing."""
+    """Accept an HTML lesson file upload for editing — rebuilds with latest code."""
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -2266,19 +2266,78 @@ def upload_html():
         return jsonify({"error": "Only HTML files are allowed"}), 400
 
     filename = secure_filename(file.filename)
-    # Add unique prefix to avoid collisions
     unique_name = f"edit_{uuid.uuid4().hex[:8]}_{filename}"
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
     file.save(filepath)
 
-    # Ensure the file has the data-edit attribute for editing
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             html = f.read()
-        if 'data-edit="1"' not in html:
-            html = html.replace("<body", '<body data-edit="1"', 1)
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(html)
+
+        # Try to extract slidesData and IMAGES from markers and rebuild with latest code
+        rebuilt = False
+        sd1 = html.find("/*SDATA*/")
+        sd2 = html.find("/*EDATA*/")
+        im1 = html.find("/*SIMGS*/")
+        im2 = html.find("/*EIMGS*/")
+
+        if sd1 >= 0 and sd2 > sd1 and im1 >= 0 and im2 > im1:
+            try:
+                # Extract slidesData JSON
+                sdata_raw = html[sd1 + 9:sd2]
+                # Remove "const slidesData=" prefix and trailing ";"
+                sdata_raw = sdata_raw.strip()
+                if sdata_raw.startswith("const slidesData="):
+                    sdata_raw = sdata_raw[len("const slidesData="):]
+                sdata_raw = sdata_raw.rstrip(";").strip()
+                slides_data = json.loads(sdata_raw)
+
+                # Extract IMAGES JSON
+                imgs_raw = html[im1 + 9:im2]
+                imgs_raw = imgs_raw.strip()
+                if imgs_raw.startswith("const IMAGES="):
+                    imgs_raw = imgs_raw[len("const IMAGES="):]
+                imgs_raw = imgs_raw.rstrip(";").strip()
+                images_dict = json.loads(imgs_raw)
+
+                # Extract course title
+                import re as _re
+                title_match = _re.search(r'const COURSE_TITLE=`([^`]*)`', html)
+                course_title = title_match.group(1) if title_match else "Lesson"
+
+                # Extract ElevenLabs key and voice
+                el_key_match = _re.search(r"const EL_KEY='([^']*)'", html)
+                el_voice_match = _re.search(r"const EL_VOICE='([^']*)'", html)
+                el_key = el_key_match.group(1) if el_key_match else ""
+                el_voice = el_voice_match.group(1) if el_voice_match else "EXAVITQu4vr4xnSDxMaL"
+
+                # Reconstruct images list for build_html
+                images_list = []
+                for idx_str, data_uri in sorted(images_dict.items(), key=lambda x: int(x[0])):
+                    images_list.append({
+                        "page": int(idx_str),
+                        "data_uri": data_uri,
+                        "desc": f"Image {idx_str}",
+                    })
+
+                # Rebuild HTML with latest code
+                new_html = build_html(
+                    slides_data, course_title,
+                    elevenlabs_key=el_key, elevenlabs_voice=el_voice,
+                    images=images_list
+                )
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(new_html)
+                rebuilt = True
+            except Exception as e:
+                print(f"Warning: Could not rebuild HTML, using original: {e}")
+
+        if not rebuilt:
+            # Fallback: just add data-edit attribute
+            if 'data-edit="1"' not in html:
+                html = html.replace("<body", '<body data-edit="1"', 1)
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(html)
     except Exception:
         pass
 
