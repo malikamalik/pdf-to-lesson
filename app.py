@@ -1218,6 +1218,17 @@ function R(){{
   setTimeout(()=>{{document.querySelectorAll('.an,.an2,.an3,.an4,.an5').forEach((el,i)=>{{setTimeout(()=>el.classList.add('go'),i*70)}})}},30);
   if(s.i)s.i();
   const cn=document.getElementById('cn');if(cn)cn.scrollTop=0;
+  // Auto-play videos: if listen mode is off, play video after slide animation
+  if(!listenMode){{
+    setTimeout(()=>{{
+      const vids=document.querySelectorAll('.slide-video');
+      vids.forEach(v=>{{
+        v.scrollIntoView({{behavior:'smooth',block:'center'}});
+        v.muted=true;v.currentTime=0;
+        v.play().then(()=>{{v.muted=false}}).catch(()=>{{}});
+      }});
+    }},800);
+  }}
 }}
 function oN(){{document.getElementById('ov').classList.add('open');document.getElementById('dw').classList.add('open')}}
 function cN(){{document.getElementById('ov').classList.remove('open');document.getElementById('dw').classList.remove('open')}}
@@ -1255,7 +1266,21 @@ function stopAudio(){{
   if(autoTimer){{clearTimeout(autoTimer);autoTimer=null}}
 }}
 
-function slideText(s){{return s.narr||s.t+'. '+(s.s||'')}}
+function slideHasVideo(idx){{
+  const d=slidesData[idx];if(!d)return false;
+  const blocks=(d.body&&d.body.blocks)||[];
+  if(!Array.isArray(blocks))return false;
+  return blocks.some(b=>b&&(b.kind||b.type)==='image'&&b.image_idx!==undefined&&isVideo(b.image_idx));
+}}
+function slideText(s){{
+  let text=s.narr||s.t+'. '+(s.s||'');
+  // Auto-append video transition if slide has a video and narration doesn't already mention it
+  const idx=S.indexOf(s);
+  if(idx>=0&&slideHasVideo(idx)&&!/video|watch|demo|action|look at/i.test(text)){{
+    text+=' Now, let\\'s watch the video to see this in action.';
+  }}
+  return text;
+}}
 
 function preCache(from){{
   for(let i=1;i<=3;i++){{const idx=from+i;if(idx<S.length&&!audioCache[idx])elFetch(slideText(S[idx]),idx).catch(()=>{{}})}}
