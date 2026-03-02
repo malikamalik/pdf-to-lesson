@@ -546,11 +546,12 @@ Each slide object:
 11. Add milestones between major sections. Add compare blocks and tips throughout.
 12. End with a review/cheat-sheet slide using a table or icons, then a completion slide.
 
-### Images
-13. Place each image in the lesson slide covering the SAME TOPIC as the original source slide.
+### Images & Videos
+13. Place each image/video in the lesson slide covering the SAME TOPIC as the original source slide.
 14. Use {"kind": "image", "image_idx": N, "alt": "SPECIFIC DESCRIPTION"} — not "Image from slide 5".
 15. Place images AFTER introductory text so the reader has context.
-16. Use every provided image at least once.
+16. Use every provided image/video at least once.
+17. **Videos are special:** When a slide contains a video, the video will auto-play at the bottom of the slide. In the narration for that slide, ALWAYS end with a natural transition to the video, such as: "Let's watch how this works in action", "Take a look at this video to see it in practice", "Let's see a demo of this", "Watch the video below to see the full walkthrough", etc. This makes the narration flow naturally into the video playback.
 
 OUTPUT ONLY THE JSON ARRAY. No other text."""
 
@@ -1000,8 +1001,10 @@ function renderBlock(b){{
     if(idx!==undefined && IMAGES[idx]){{
       const alt=b.alt||b.caption||'';
       const src=mediaSrc(idx);
-      const media=isVideo(idx)?`<video src="${{src}}" controls playsinline style="width:100%;display:block"></video>`:`<img src="${{src}}" alt="${{alt}}" loading="lazy">`;
-      return `<div class="img-frame an">${{media}}${{alt?`<div class="img-frame-label">${{alt}}</div>`:''}}</div>`;
+      if(isVideo(idx)){{
+        return `<div class="img-frame an slide-video-wrap"><video src="${{src}}" controls playsinline class="slide-video" style="width:100%;display:block"></video>${{alt?`<div class="img-frame-label">${{alt}}</div>`:''}}</div>`;
+      }}
+      return `<div class="img-frame an"><img src="${{src}}" alt="${{alt}}" loading="lazy">${{alt?`<div class="img-frame-label">${{alt}}</div>`:''}}</div>`;
     }}
     return '';
   }}
@@ -1016,7 +1019,15 @@ function buildContentSlide(d){{
   let html='<div style="max-width:100%">';
   const blocks=(d.body&&d.body.blocks)||d.body||[];
   if(Array.isArray(blocks)){{
-    blocks.forEach(b=>{{ html+=renderBlock(b); }});
+    // Render non-video blocks first, then video blocks at the end
+    const nonVideo=[];const videoBlocks=[];
+    blocks.forEach(b=>{{
+      const k=b&&(b.kind||b.type||'');
+      if(k==='image'&&b.image_idx!==undefined&&isVideo(b.image_idx))videoBlocks.push(b);
+      else nonVideo.push(b);
+    }});
+    nonVideo.forEach(b=>{{ html+=renderBlock(b); }});
+    videoBlocks.forEach(b=>{{ html+=renderBlock(b); }});
   }} else if(typeof blocks==='object'){{
     Object.values(blocks).forEach(b=>{{ if(Array.isArray(b))b.forEach(x=>{{html+=renderBlock(x)}}); }});
   }}
@@ -1096,7 +1107,7 @@ let cur=0,prevCur=0;
 let listenMode=false,speaking=false,autoTimer=null;
 
 // ── NAVIGATION ──
-function go(i){{prevCur=cur;cur=Math.max(0,Math.min(S.length-1,i));stopAudio();R();if(listenMode)speakSlide()}}
+function go(i){{prevCur=cur;document.querySelectorAll('.slide-video').forEach(v=>{{v.pause()}});cur=Math.max(0,Math.min(S.length-1,i));stopAudio();R();if(listenMode)speakSlide()}}
 
 // ── FOLLOW-ALONG STEPS ──
 function FA(id,steps){{const el=document.getElementById(id);if(!el)return;let st=0;
@@ -1203,6 +1214,15 @@ function R(){{
   setTimeout(()=>{{document.querySelectorAll('.an,.an2,.an3,.an4,.an5').forEach((el,i)=>{{setTimeout(()=>el.classList.add('go'),i*70)}})}},30);
   if(s.i)s.i();
   const cn=document.getElementById('cn');if(cn)cn.scrollTop=0;
+  // Auto-play videos on this slide after a short delay
+  setTimeout(()=>{{
+    const videos=document.querySelectorAll('.slide-video');
+    videos.forEach(v=>{{
+      v.muted=false;
+      v.currentTime=0;
+      v.play().catch(()=>{{}});
+    }});
+  }},600);
 }}
 function oN(){{document.getElementById('ov').classList.add('open');document.getElementById('dw').classList.add('open')}}
 function cN(){{document.getElementById('ov').classList.remove('open');document.getElementById('dw').classList.remove('open')}}
@@ -1267,6 +1287,15 @@ async function speakSlide(){{
     speaking=false;currentAudio=null;
     if(stale())return;
     const interactive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
+    // If slide has a video, don't auto-advance — let video play first
+    const hasVideo=document.querySelector('.slide-video');
+    if(hasVideo){{
+      hasVideo.scrollIntoView({{behavior:'smooth',block:'center'}});
+      hasVideo.currentTime=0;hasVideo.play().catch(()=>{{}});
+      // Auto-advance after video ends
+      hasVideo.onended=()=>{{if(cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
+      return;
+    }}
     if(!interactive&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800);
   }};
   audio.onerror=()=>{{speaking=false;currentAudio=null;setTxt('Error')}};
