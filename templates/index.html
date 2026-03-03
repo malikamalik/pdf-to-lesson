@@ -1226,10 +1226,16 @@
         </div>
       </div>
 
+      <div class="form-group" style="margin-top:16px">
+        <label for="editElevenLabsKey">ElevenLabs API key <span style="font-weight:400;color:var(--text-tertiary)">(optional &mdash; generates premium voiceover)</span></label>
+        <div class="hint">Audio is generated once and embedded in the HTML. Your key is never stored in the file.</div>
+        <input type="password" class="text-input" id="editElevenLabsKey" placeholder="sk_...">
+      </div>
+
       <div id="htmlUploadProgress" style="display:none;margin-top:16px">
         <div class="progress-status">
           <div class="spinner"></div>
-          <span>Uploading...</span>
+          <span id="htmlUploadStatus">Uploading...</span>
         </div>
       </div>
 
@@ -1450,7 +1456,10 @@ function loadSavedKeys() {
   const saved = localStorage.getItem(STORAGE_KEYS.api);
   if (saved) { apiKeyInput.value = saved; }
   const elKey = localStorage.getItem(STORAGE_KEYS.el);
-  if (elKey) { document.getElementById('elevenLabsKey').value = elKey; }
+  if (elKey) {
+    document.getElementById('elevenLabsKey').value = elKey;
+    document.getElementById('editElevenLabsKey').value = elKey;
+  }
   const title = localStorage.getItem(STORAGE_KEYS.title);
   if (title) { document.getElementById('titleInput').value = title; }
   checkReady();
@@ -1473,6 +1482,11 @@ function saveKeys() {
 // Save keys whenever they change
 apiKeyInput.addEventListener('input', () => { saveKeys(); checkReady(); });
 document.getElementById('elevenLabsKey').addEventListener('input', saveKeys);
+document.getElementById('editElevenLabsKey').addEventListener('input', function() {
+  const val = this.value.trim();
+  if (val) localStorage.setItem(STORAGE_KEYS.el, val);
+  else localStorage.removeItem(STORAGE_KEYS.el);
+});
 document.getElementById('titleInput').addEventListener('input', saveKeys);
 
 // Load on startup
@@ -2034,10 +2048,20 @@ document.getElementById('htmlRemoveFile').addEventListener('click', function(e) 
 
 async function uploadHtmlFile(file) {
   const progress = document.getElementById('htmlUploadProgress');
+  const statusEl = document.getElementById('htmlUploadStatus');
   progress.style.display = 'block';
+
+  const elKey = document.getElementById('editElevenLabsKey').value.trim();
 
   const formData = new FormData();
   formData.append('file', file);
+  if (elKey) {
+    formData.append('elevenlabs_key', elKey);
+    formData.append('elevenlabs_voice', 'EXAVITQu4vr4xnSDxMaL');
+    statusEl.textContent = 'Uploading & generating voiceover...';
+  } else {
+    statusEl.textContent = 'Uploading...';
+  }
 
   try {
     const resp = await fetch('/upload-html', { method: 'POST', body: formData });

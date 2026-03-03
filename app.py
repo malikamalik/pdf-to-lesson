@@ -2498,6 +2498,14 @@ def upload_html():
                     except Exception:
                         pass
 
+                # Generate new audio if ElevenLabs key provided
+                el_key = request.form.get("elevenlabs_key", "").strip()
+                el_voice = request.form.get("elevenlabs_voice", "").strip() or "EXAVITQu4vr4xnSDxMaL"
+                if el_key:
+                    new_audio = pre_generate_audio(slides_data, el_key, el_voice)
+                    # Merge: new audio overwrites existing
+                    existing_audio.update(new_audio)
+
                 # Rebuild HTML with latest code (no embedded API keys)
                 new_html = build_html(
                     slides_data, course_title,
