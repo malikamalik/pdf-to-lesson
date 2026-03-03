@@ -1234,11 +1234,11 @@ function oN(){{document.getElementById('ov').classList.add('open');document.getE
 function cN(){{document.getElementById('ov').classList.remove('open');document.getElementById('dw').classList.remove('open')}}
 
 
-// ── TTS (ElevenLabs) ──
+// ── TTS (ElevenLabs + Browser fallback) ──
 const EL_KEY='{elevenlabs_key}';
 const EL_VOICE='{elevenlabs_voice}';
 const EL_MODEL='eleven_turbo_v2_5';
-let currentAudio=null,audioCache={{}},audioUnlocked=false;
+let currentAudio=null,audioCache={{}},audioUnlocked=false,useBrowserTTS=false;
 
 async function unlockAudio(){{
   if(audioUnlocked)return;
@@ -1247,7 +1247,7 @@ async function unlockAudio(){{
 
 async function elFetch(text,idx){{
   if(audioCache[idx])return audioCache[idx];
-  if(!EL_KEY)return null;
+  if(!EL_KEY||useBrowserTTS)return null;
   try{{
     const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${{EL_VOICE}}/stream`,{{
       method:'POST',
@@ -1257,11 +1257,12 @@ async function elFetch(text,idx){{
     if(!r.ok)throw new Error(r.status);
     const url=URL.createObjectURL(await r.blob());
     audioCache[idx]=url;return url;
-  }}catch(e){{console.warn('ElevenLabs:',e.message);return null}}
+  }}catch(e){{console.warn('ElevenLabs error:',e.message,'. Falling back to browser TTS.');useBrowserTTS=true;return null}}
 }}
 
 function stopAudio(){{
   if(currentAudio){{currentAudio.pause();currentAudio.currentTime=0;currentAudio=null}}
+  window.speechSynthesis&&window.speechSynthesis.cancel();
   speaking=false;
   if(autoTimer){{clearTimeout(autoTimer);autoTimer=null}}
 }}
@@ -1286,42 +1287,69 @@ function preCache(from){{
   for(let i=1;i<=3;i++){{const idx=from+i;if(idx<S.length&&!audioCache[idx])elFetch(slideText(S[idx]),idx).catch(()=>{{}})}}
 }}
 
+function onTTSEnd(myCur,s){{
+  speaking=false;currentAudio=null;
+  const stale=()=>!listenMode||cur!==myCur;
+  if(stale())return;
+  const interactive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
+  const hasVideo=document.querySelector('.slide-video');
+  if(hasVideo){{
+    hasVideo.scrollIntoView({{behavior:'smooth',block:'center'}});
+    hasVideo.currentTime=0;
+    hasVideo.muted=true;
+    hasVideo.play().then(()=>{{hasVideo.muted=false}}).catch(()=>{{}});
+    hasVideo.onended=()=>{{if(cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
+    return;
+  }}
+  if(!interactive&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800);
+}}
+
+function speakBrowser(text,myCur,s,setTxt){{
+  if(!window.speechSynthesis){{setTxt('Error');speaking=false;return}}
+  window.speechSynthesis.cancel();
+  const utter=new SpeechSynthesisUtterance(text);
+  const voices=window.speechSynthesis.getVoices();
+  const eng=voices.find(v=>v.name.includes('Samantha'))||voices.find(v=>v.lang.startsWith('en')&&v.localService)||voices.find(v=>v.lang.startsWith('en'))||voices[0];
+  if(eng)utter.voice=eng;
+  utter.rate=0.95;
+  utter.onstart=()=>setTxt('Listening');
+  utter.onend=()=>onTTSEnd(myCur,s);
+  utter.onerror=(e)=>{{if(e.error!=='canceled'){{speaking=false;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}}}};
+  window.speechSynthesis.speak(utter);
+  // Chrome bug: pauses after 15s — keep it alive
+  if(!window._ttsKeepAlive){{window._ttsKeepAlive=setInterval(()=>{{if(window.speechSynthesis.speaking){{window.speechSynthesis.pause();window.speechSynthesis.resume()}}}},10000)}}
+}}
+
 async function speakSlide(){{
   stopAudio();
-  if(!listenMode||!EL_KEY)return;
+  if(!listenMode)return;
   const myCur=cur,s=S[myCur],text=slideText(s);
   speaking=true;
   const badge=document.getElementById('listen-toggle');
   const setTxt=(t)=>{{if(badge){{const lt=badge.querySelector('.listen-text');if(lt)lt.textContent=t}}}};
   const stale=()=>!listenMode||cur!==myCur;
 
+  // Try ElevenLabs first
   let url=audioCache[myCur]||null;
-  if(!url){{setTxt('Loading...');url=await elFetch(text,myCur)}}
-  if(stale()){{speaking=false;return}}
-  if(!url){{setTxt('Error');speaking=false;setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000);return}}
+  if(!useBrowserTTS&&EL_KEY){{
+    if(!url){{setTxt('Loading...');url=await elFetch(text,myCur)}}
+    if(stale()){{speaking=false;return}}
+  }}
 
-  setTxt('Listening');
-  const audio=new Audio(url);
-  currentAudio=audio;
-  audio.onended=()=>{{
-    speaking=false;currentAudio=null;
-    if(stale())return;
-    const interactive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
-    // If slide has a video, don't auto-advance — play video first
-    const hasVideo=document.querySelector('.slide-video');
-    if(hasVideo){{
-      hasVideo.scrollIntoView({{behavior:'smooth',block:'center'}});
-      hasVideo.currentTime=0;
-      // Start muted to satisfy autoplay policy, then unmute
-      hasVideo.muted=true;
-      hasVideo.play().then(()=>{{hasVideo.muted=false}}).catch(()=>{{}});
-      hasVideo.onended=()=>{{if(cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
-      return;
-    }}
-    if(!interactive&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800);
-  }};
-  audio.onerror=()=>{{speaking=false;currentAudio=null;setTxt('Error')}};
-  try{{await audio.play();preCache(myCur)}}catch(e){{speaking=false;console.warn('Play blocked:',e)}}
+  // If ElevenLabs worked, play audio
+  if(url){{
+    setTxt('Listening');
+    const audio=new Audio(url);
+    currentAudio=audio;
+    audio.onended=()=>onTTSEnd(myCur,s);
+    audio.onerror=()=>{{speaking=false;currentAudio=null;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}};
+    try{{await audio.play();preCache(myCur)}}catch(e){{speaking=false;console.warn('Play blocked:',e)}}
+    return;
+  }}
+
+  // Fallback: browser SpeechSynthesis
+  setTxt('Loading...');
+  speakBrowser(text,myCur,s,setTxt);
 }}
 
 function toggleListen(){{
@@ -1330,13 +1358,15 @@ function toggleListen(){{
   const badge=document.getElementById('listen-toggle');
   if(badge){{badge.className=listenMode?'listen-badge':'listen-badge off';badge.querySelector('.listen-text').textContent=listenMode?'Listening':'Listen'}}
 }}
+// Init browser voices early
+if(window.speechSynthesis){{window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices()}}
 
 // Pre-cache first slides on load
 if(EL_KEY){{for(let i=0;i<Math.min(3,S.length);i++)elFetch(slideText(S[i]),i).catch(()=>{{}})}}
 
 // ── WELCOME MODAL ──
 function showWelcome(){{
-  const hasVoice=!!EL_KEY;
+  const hasVoice=!!EL_KEY||!!window.speechSynthesis;
   const m=document.createElement('div');m.className='modal-bg';m.id='welcome-modal';
   m.innerHTML=`<div class="modal">
     <div style="margin-bottom:20px;font-size:40px">\\uD83D\\uDCDA</div>
