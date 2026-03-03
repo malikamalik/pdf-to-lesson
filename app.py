@@ -891,8 +891,9 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 @keyframes eqBar{{from{{height:3px}}to{{height:10px}}}}
 .listen-badge.off .eq i{{animation:none;height:3px}}
 .listen-badge.off{{background:var(--s1);border-color:var(--s2);color:var(--c3)}}
-.voice-gear{{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:.4;transition:opacity .2s}}
+.voice-gear{{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:.4;transition:opacity .2s;display:none}}
 .voice-gear:hover{{opacity:1}}
+body[data-edit] .voice-gear{{display:inline-block}}
 .voice-modal-bg{{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:10000;display:flex;align-items:center;justify-content:center}}
 .voice-modal{{background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2)}}
 .voice-modal h3{{margin:0 0 4px;font-size:16px}}
