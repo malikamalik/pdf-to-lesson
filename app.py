@@ -651,7 +651,72 @@ Return ONLY the JSON array. No markdown, no explanation."""
     return json.loads(raw)
 
 
-def build_html(slides_data, course_title, elevenlabs_key="", elevenlabs_voice="EXAVITQu4vr4xnSDxMaL", images=None):
+def generate_slide_narration_text(slide):
+    """Extract the narration text for a slide (mirrors JS slideText logic)."""
+    text = slide.get("narration", "") or (slide.get("title", "") + ". " + slide.get("subtitle", ""))
+    # Check if slide has video
+    body = slide.get("body", {})
+    blocks = body.get("blocks", []) if isinstance(body, dict) else []
+    has_video = any(
+        b.get("kind", b.get("type", "")) == "image"
+        and b.get("image_idx") is not None
+        for b in blocks if isinstance(b, dict)
+    )
+    if has_video and not any(w in text.lower() for w in ["video", "watch", "demo", "action", "look at"]):
+        text = text.strip() + " Now, let's watch the video to see this in action."
+    return text.strip()
+
+
+def pre_generate_audio(slides_data, elevenlabs_key, elevenlabs_voice="EXAVITQu4vr4xnSDxMaL"):
+    """Call ElevenLabs TTS for each slide and return dict of {index: base64_mp3}."""
+    if not elevenlabs_key:
+        return {}
+
+    audio_cache = {}
+    model = "eleven_turbo_v2_5"
+    url_tpl = f"https://api.elevenlabs.io/v1/text-to-speech/{elevenlabs_voice}/stream"
+
+    def fetch_audio(idx, text):
+        if not text.strip():
+            return idx, None
+        try:
+            payload = json.dumps({
+                "text": text,
+                "model_id": model,
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": True}
+            }).encode("utf-8")
+            req = urllib.request.Request(url_tpl, data=payload, method="POST", headers={
+                "Content-Type": "application/json",
+                "xi-api-key": elevenlabs_key,
+                "Accept": "audio/mpeg",
+            })
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                audio_bytes = resp.read()
+            return idx, base64.b64encode(audio_bytes).decode("ascii")
+        except Exception as e:
+            print(f"  Audio gen slide {idx}: {e}")
+            return idx, None
+
+    # Generate narration text for each slide
+    tasks = []
+    for i, slide in enumerate(slides_data):
+        text = generate_slide_narration_text(slide)
+        if text:
+            tasks.append((i, text))
+
+    # Fetch audio in parallel (max 3 concurrent to avoid rate limits)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        futures = [pool.submit(fetch_audio, idx, text) for idx, text in tasks]
+        for f in concurrent.futures.as_completed(futures):
+            idx, b64 = f.result()
+            if b64:
+                audio_cache[idx] = b64
+
+    print(f"  Pre-generated audio for {len(audio_cache)}/{len(tasks)} slides")
+    return audio_cache
+
+
+def build_html(slides_data, course_title, elevenlabs_key="", elevenlabs_voice="EXAVITQu4vr4xnSDxMaL", images=None, audio_cache=None):
     """Wrap the slides JSON in the complete, guaranteed-working HTML shell."""
 
     # Derive title if not provided — use first content slide's title
@@ -678,6 +743,10 @@ def build_html(slides_data, course_title, elevenlabs_key="", elevenlabs_voice="E
         for i, img in enumerate(images):
             images_dict[i] = img["data_uri"]
     images_json = json.dumps(images_dict, ensure_ascii=False)
+
+    # Build pre-generated audio lookup: index -> base64 mp3
+    audio_dict = audio_cache if audio_cache else {}
+    audio_json = json.dumps(audio_dict, ensure_ascii=False)
 
     return f'''<!DOCTYPE html>
 <html lang="en">
@@ -822,6 +891,18 @@ body{{font-family:'Inter',system-ui,sans-serif;background:#fff;color:var(--c1);-
 @keyframes eqBar{{from{{height:3px}}to{{height:10px}}}}
 .listen-badge.off .eq i{{animation:none;height:3px}}
 .listen-badge.off{{background:var(--s1);border-color:var(--s2);color:var(--c3)}}
+.voice-gear{{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;opacity:.4;transition:opacity .2s}}
+.voice-gear:hover{{opacity:1}}
+.voice-modal-bg{{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:10000;display:flex;align-items:center;justify-content:center}}
+.voice-modal{{background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2)}}
+.voice-modal h3{{margin:0 0 4px;font-size:16px}}
+.voice-modal p{{margin:0 0 16px;font-size:13px;color:var(--c3)}}
+.voice-modal label{{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--c2)}}
+.voice-modal input{{width:100%;padding:8px 10px;border:1px solid var(--s2);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:12px}}
+.voice-modal .vm-btns{{display:flex;gap:8px;justify-content:flex-end}}
+.voice-modal .vm-btn{{padding:6px 16px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid var(--s2);background:none;color:var(--c2)}}
+.voice-modal .vm-btn.primary{{background:var(--b);color:#fff;border-color:var(--b)}}
+.voice-modal .vm-status{{font-size:11px;margin-bottom:8px;padding:6px 8px;border-radius:6px}}
 
 .edit-btn{{background:none;border:1px solid var(--s2);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--c3);cursor:pointer;display:none;align-items:center;gap:4px;transition:all .2s}}
 body[data-edit] .edit-btn{{display:flex}}
@@ -905,6 +986,7 @@ body[data-edit] .narr-regen{{display:inline-flex}}
 // ── DATA ──
 /*SDATA*/const slidesData={slides_json};/*EDATA*/
 /*SIMGS*/const IMAGES={images_json};/*EIMGS*/
+/*SAUDIO*/const PREGEN_AUDIO={audio_json};/*EAUDIO*/
 const COURSE_TITLE=`{course_title}`;
 
 // ── VIDEO BLOB CACHE ──
@@ -1209,7 +1291,7 @@ function R(){{
   let nav='';cats.forEach(c=>{{nav+=`<div class="dw-c">${{c}}</div>`;S.filter(x=>x.cat===c).forEach(x=>{{const idx=S.indexOf(x);const ico=x.t.startsWith('Quick')?'\\u2726':'\\u2022';nav+=`<button class="dw-i${{idx===cur?' on':''}}" onclick="go(${{idx}});cN()"><span class="dw-ico">${{ico}}</span>${{x.t}}</button>`}})}});
 
   document.getElementById('app').innerHTML=`
-    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="undo-btn" id="undo-btn" onclick="doUndo()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>Undo</button><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><button class="dl-btn" onclick="downloadWithEdits()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
+    <div class="hd"><div class="hd-l"><button class="ham" onclick="oN()"><svg width="15" height="12" viewBox="0 0 15 12" fill="none"><path d="M1 1h13M1 6h9M1 11h13" stroke="var(--c1)" stroke-width="1.3" stroke-linecap="round"/></svg></button><span class="hd-cat">${{s.cat}}</span></div><div class="hd-r"><button class="undo-btn" id="undo-btn" onclick="doUndo()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>Undo</button><button class="edit-btn" onclick="openEdit()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button><button class="dl-btn" onclick="downloadWithEdits()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Download</button><div id="listen-toggle" class="${{listenMode?'listen-badge':'listen-badge off'}}" onclick="toggleListen()"><div class="eq"><i></i><i></i><i></i></div><span class="listen-text">${{listenMode?'Listening':'Listen'}}</span></div><button class="voice-gear" onclick="event.stopPropagation();openVoiceSettings()" title="Voice settings">\\u2699</button><div class="xp-badge" id="xp-wrap"><span class="coin-icon">${{coinSvg}}</span><span id="xp-val">${{xp}}</span></div><span class="hd-n">${{cur+1}}/${{S.length}}</span></div></div>
     <div class="bar"><div class="bar-f" style="width:${{pct}}%"></div></div>
     <div class="ov" id="ov" onclick="cN()"></div><div class="dw" id="dw"><div class="dw-h">Lessons</div>${{nav}}</div>
     <div class="ct ${{cur>=prevCur?'entering':'entering-back'}}" id="cn"><h1 class="an">${{s.t}}</h1>${{s.s?`<p class="sub an">${{s.s}}</p>`:'<div style="height:20px"></div>'}}\n${{s.r()}}</div>
@@ -1234,11 +1316,13 @@ function oN(){{document.getElementById('ov').classList.add('open');document.getE
 function cN(){{document.getElementById('ov').classList.remove('open');document.getElementById('dw').classList.remove('open')}}
 
 
-// ── TTS (ElevenLabs + Browser fallback) ──
-const EL_KEY='{elevenlabs_key}';
-const EL_VOICE='{elevenlabs_voice}';
+// ── TTS (Pre-generated audio > ElevenLabs API > Browser fallback) ──
+function getELKey(){{return localStorage.getItem('lf_el_key')||''}}
+function getELVoice(){{return localStorage.getItem('lf_el_voice')||'EXAVITQu4vr4xnSDxMaL'}}
 const EL_MODEL='eleven_turbo_v2_5';
-let currentAudio=null,audioCache={{}},audioUnlocked=false,useBrowserTTS=false;
+let currentAudio=null,audioCache={{}},audioUnlocked=false,elFailed=false;
+// Convert pre-generated base64 audio to blob URLs on load
+(function(){{if(typeof PREGEN_AUDIO==='object'){{Object.keys(PREGEN_AUDIO).forEach(k=>{{const b64=PREGEN_AUDIO[k];if(b64){{try{{const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);audioCache[k]=URL.createObjectURL(new Blob([arr],{{type:'audio/mpeg'}}))}}catch(e){{}}}}}})}}}})();
 
 async function unlockAudio(){{
   if(audioUnlocked)return;
@@ -1247,17 +1331,18 @@ async function unlockAudio(){{
 
 async function elFetch(text,idx){{
   if(audioCache[idx])return audioCache[idx];
-  if(!EL_KEY||useBrowserTTS)return null;
+  const key=getELKey();
+  if(!key||elFailed)return null;
   try{{
-    const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${{EL_VOICE}}/stream`,{{
+    const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${{getELVoice()}}/stream`,{{
       method:'POST',
-      headers:{{'Content-Type':'application/json','xi-api-key':EL_KEY,'Accept':'audio/mpeg'}},
+      headers:{{'Content-Type':'application/json','xi-api-key':key,'Accept':'audio/mpeg'}},
       body:JSON.stringify({{text,model_id:EL_MODEL,voice_settings:{{stability:0.5,similarity_boost:0.75,use_speaker_boost:true}}}})
     }});
     if(!r.ok)throw new Error(r.status);
     const url=URL.createObjectURL(await r.blob());
     audioCache[idx]=url;return url;
-  }}catch(e){{console.warn('ElevenLabs error:',e.message,'. Falling back to browser TTS.');useBrowserTTS=true;return null}}
+  }}catch(e){{console.warn('ElevenLabs error:',e.message,'. Using browser TTS.');elFailed=true;return null}}
 }}
 
 function stopAudio(){{
@@ -1329,10 +1414,11 @@ async function speakSlide(){{
   const setTxt=(t)=>{{if(badge){{const lt=badge.querySelector('.listen-text');if(lt)lt.textContent=t}}}};
   const stale=()=>!listenMode||cur!==myCur;
 
-  // Try ElevenLabs first
+  // 1. Check pre-generated audio cache first (free, instant)
   let url=audioCache[myCur]||null;
-  if(!useBrowserTTS&&EL_KEY){{
-    if(!url){{setTxt('Loading...');url=await elFetch(text,myCur)}}
+  // 2. If no cached audio, try ElevenLabs API (if user set their own key)
+  if(!url&&!elFailed&&getELKey()){{
+    setTxt('Loading...');url=await elFetch(text,myCur);
     if(stale()){{speaking=false;return}}
   }}
 
@@ -1361,12 +1447,58 @@ function toggleListen(){{
 // Init browser voices early
 if(window.speechSynthesis){{window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices()}}
 
-// Pre-cache first slides on load
-if(EL_KEY){{for(let i=0;i<Math.min(3,S.length);i++)elFetch(slideText(S[i]),i).catch(()=>{{}})}}
+function openVoiceSettings(){{
+  const existing=document.getElementById('voice-settings-modal');
+  if(existing)existing.remove();
+  const curKey=getELKey();
+  const curVoice=getELVoice();
+  const hasPre=Object.keys(audioCache).length>0;
+  const bg=document.createElement('div');bg.className='voice-modal-bg';bg.id='voice-settings-modal';
+  bg.onclick=(e)=>{{if(e.target===bg)bg.remove()}};
+  let statusHtml='';
+  if(hasPre)statusHtml='<div class="vm-status" style="background:#F0FDF4;color:#16A34A">\\u2713 Pre-generated ElevenLabs audio embedded ('+Object.keys(audioCache).length+' slides)</div>';
+  else if(curKey)statusHtml='<div class="vm-status" style="background:#F0FDF4;color:#16A34A">\\u2713 ElevenLabs connected (live API)</div>';
+  else statusHtml='<div class="vm-status" style="background:#F0F9FF;color:#4E83FF">\\uD83D\\uDD0A Browser TTS active (no key needed)</div>';
+  bg.innerHTML=`<div class="voice-modal">
+    <h3>Voice Settings</h3>
+    <p>${{hasPre?'This lesson has premium ElevenLabs audio built in. No API key needed!':curKey?'Using ElevenLabs premium voice via your API key.':'Using browser built-in voice (free). Add an ElevenLabs key for premium AI voices.'}}</p>
+    ${{statusHtml}}
+    <label>ElevenLabs API Key (optional — for slides without pre-generated audio)</label>
+    <input type="password" id="vm-el-key" placeholder="sk_..." value="${{curKey}}">
+    <label>Voice ID</label>
+    <input type="text" id="vm-el-voice" placeholder="EXAVITQu4vr4xnSDxMaL" value="${{curVoice}}">
+    <div style="font-size:11px;color:var(--c3);margin-bottom:16px">Get a key at <a href="https://elevenlabs.io" target="_blank" style="color:var(--b)">elevenlabs.io</a>. Leave blank to use free browser voice.</div>
+    <div class="vm-btns">
+      ${{curKey?'<button class="vm-btn" onclick="clearVoiceKey()">Remove key</button>':''}}
+      <button class="vm-btn" onclick="document.getElementById(\\'voice-settings-modal\\').remove()">Cancel</button>
+      <button class="vm-btn primary" onclick="saveVoiceSettings()">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}}
+
+function saveVoiceSettings(){{
+  const key=document.getElementById('vm-el-key').value.trim();
+  const voice=document.getElementById('vm-el-voice').value.trim()||'EXAVITQu4vr4xnSDxMaL';
+  if(key){{localStorage.setItem('lf_el_key',key);localStorage.setItem('lf_el_voice',voice)}}
+  else{{localStorage.removeItem('lf_el_key');localStorage.removeItem('lf_el_voice')}}
+  // Reset TTS state so next speak uses new settings
+  audioCache={{}};elFailed=false;
+  document.getElementById('voice-settings-modal').remove();
+}}
+
+function clearVoiceKey(){{
+  localStorage.removeItem('lf_el_key');localStorage.removeItem('lf_el_voice');
+  audioCache={{}};elFailed=false;
+  document.getElementById('voice-settings-modal').remove();
+}}
+
+// Pre-cache first slides on load (only if no pre-generated audio and user has EL key)
+if(getELKey()){{for(let i=0;i<Math.min(3,S.length);i++){{if(!audioCache[i])elFetch(slideText(S[i]),i).catch(()=>{{}})}}}}
 
 // ── WELCOME MODAL ──
 function showWelcome(){{
-  const hasVoice=!!EL_KEY||!!window.speechSynthesis;
+  const hasVoice=Object.keys(audioCache).length>0||!!getELKey()||!!window.speechSynthesis;
   const m=document.createElement('div');m.className='modal-bg';m.id='welcome-modal';
   m.innerHTML=`<div class="modal">
     <div style="margin-bottom:20px;font-size:40px">\\uD83D\\uDCDA</div>
@@ -1431,6 +1563,12 @@ function downloadWithEdits(){{
   const im2=html.indexOf('/*EIMGS*/');
   if(im1!==-1&&im2!==-1){{
     html=html.substring(0,im1)+'/*SIMGS*/const IMAGES='+JSON.stringify(IMAGES)+';/*EIMGS*/'+html.substring(im2+9);
+  }}
+  // Keep pre-generated audio (remove stale entries for edited slides)
+  const au1=html.indexOf('/*SAUDIO*/');
+  const au2=html.indexOf('/*EAUDIO*/');
+  if(au1!==-1&&au2!==-1){{
+    html=html.substring(0,au1)+'/*SAUDIO*/const PREGEN_AUDIO='+JSON.stringify(PREGEN_AUDIO)+';/*EAUDIO*/'+html.substring(au2+10);
   }}
   // Strip edit mode so downloaded file is clean
   html=html.replace(' data-edit="1"','');
@@ -2026,7 +2164,9 @@ def generate_lesson(pdf_text, api_key, course_title=None, elevenlabs_key="", ele
     images_info = [{"page": img["page"], "desc": img["desc"]} for img in (images or [])]
     slides_data = generate_slides_json(pdf_text, api_key, course_title, images_info=images_info or None, slide_text_notes=slide_text_notes)
     title = course_title or "Interactive Lesson"
-    return build_html(slides_data, title, elevenlabs_key=elevenlabs_key, elevenlabs_voice=elevenlabs_voice, images=images)
+    # Pre-generate ElevenLabs audio at build time (baked into HTML)
+    audio = pre_generate_audio(slides_data, elevenlabs_key, elevenlabs_voice) if elevenlabs_key else {}
+    return build_html(slides_data, title, images=images, audio_cache=audio)
 
 
 @app.route("/")
@@ -2335,12 +2475,6 @@ def upload_html():
                 title_match = _re.search(r'const COURSE_TITLE=`([^`]*)`', html)
                 course_title = title_match.group(1) if title_match else "Lesson"
 
-                # Extract ElevenLabs key and voice
-                el_key_match = _re.search(r"const EL_KEY='([^']*)'", html)
-                el_voice_match = _re.search(r"const EL_VOICE='([^']*)'", html)
-                el_key = el_key_match.group(1) if el_key_match else ""
-                el_voice = el_voice_match.group(1) if el_voice_match else "EXAVITQu4vr4xnSDxMaL"
-
                 # Reconstruct images list for build_html
                 images_list = []
                 for idx_str, data_uri in sorted(images_dict.items(), key=lambda x: int(x[0])):
@@ -2350,11 +2484,25 @@ def upload_html():
                         "desc": f"Image {idx_str}",
                     })
 
-                # Rebuild HTML with latest code
+                # Extract existing pre-generated audio if present
+                existing_audio = {}
+                au1 = html.find("/*SAUDIO*/")
+                au2 = html.find("/*EAUDIO*/")
+                if au1 >= 0 and au2 > au1:
+                    try:
+                        au_raw = html[au1 + 10:au2].strip()
+                        if au_raw.startswith("const PREGEN_AUDIO="):
+                            au_raw = au_raw[len("const PREGEN_AUDIO="):]
+                        au_raw = au_raw.rstrip(";").strip()
+                        existing_audio = json.loads(au_raw)
+                    except Exception:
+                        pass
+
+                # Rebuild HTML with latest code (no embedded API keys)
                 new_html = build_html(
                     slides_data, course_title,
-                    elevenlabs_key=el_key, elevenlabs_voice=el_voice,
-                    images=images_list
+                    images=images_list,
+                    audio_cache=existing_audio
                 )
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(new_html)
@@ -2611,7 +2759,9 @@ def topic_convert():
 
     try:
         slides_data = generate_slides_json(combined, api_key, course_title=topic)
-        html_content = build_html(slides_data, topic, elevenlabs_key=elevenlabs_key, elevenlabs_voice=elevenlabs_voice)
+        # Pre-generate ElevenLabs audio at build time
+        audio = pre_generate_audio(slides_data, elevenlabs_key, elevenlabs_voice) if elevenlabs_key else {}
+        html_content = build_html(slides_data, topic, images=None, audio_cache=audio)
 
         output_name = f"lesson_{uuid.uuid4().hex[:8]}.html"
         output_path = os.path.join(app.config["UPLOAD_FOLDER"], output_name)
