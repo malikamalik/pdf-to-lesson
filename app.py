@@ -1159,11 +1159,9 @@ const S=slidesData.map((d,idx)=>{{
     obj.i=function(){{PBUILD(pbid,parts)}};
   }}
   else if(tp==='milestone'){{
-    const mEmoji=d.emoji||(d.body&&d.body.emoji)||'\\uD83C\\uDF89';
     const mMsg=d.s||(d.body&&d.body.message)||'Great progress! Keep going.';
     obj.r=function(){{
       return `<div style="text-align:center;padding:20px 0">
-        <div class="an4" style="font-size:48px;margin-bottom:16px">${{mEmoji}}</div>
         <div class="an" style="font-size:20px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t}}</div>
         <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:320px;margin:0 auto 20px">${{mMsg}}</div>
         <div class="an" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border-radius:20px;padding:8px 20px;font-size:14px;color:#92400E;font-weight:500"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP earned</div>
@@ -1171,11 +1169,9 @@ const S=slidesData.map((d,idx)=>{{
     }};
   }}
   else if(tp==='completion'){{
-    const cEmoji=d.emoji||(d.body&&d.body.emoji)||'\\uD83C\\uDF93';
     const cMsg=d.s||(d.body&&d.body.message)||'You have completed the lesson. Well done!';
     obj.r=function(){{
       return `<div style="text-align:center;padding:20px 0">
-        <div class="an4" style="font-size:56px;margin-bottom:16px">${{cEmoji}}</div>
         <div class="an" style="font-size:22px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t||'Lesson Complete!'}}</div>
         <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:340px;margin:0 auto 24px">${{cMsg}}</div>
         <div class="an" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border:2px solid #FCD34D;border-radius:24px;padding:12px 28px;font-size:18px;color:#92400E;font-weight:600"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP</div>
@@ -1502,11 +1498,10 @@ function showWelcome(){{
   const hasVoice=Object.keys(audioCache).length>0||!!getELKey()||!!window.speechSynthesis;
   const m=document.createElement('div');m.className='modal-bg';m.id='welcome-modal';
   m.innerHTML=`<div class="modal">
-    <div style="margin-bottom:20px;font-size:40px">\\uD83D\\uDCDA</div>
-    <h2>${{COURSE_TITLE}}</h2>
+    <h2 style="margin-top:8px">${{COURSE_TITLE}}</h2>
     <p>${{S[0]&&S[0].s?S[0].s:'Master key concepts through interactive lessons, quizzes, and activities.'}}</p>
-    ${{hasVoice?`<button class="modal-btn primary" onclick="startListenMode()"><span class="btn-icon">\\uD83C\\uDFA7</span> Listen Along<span style="font-size:12.5px;color:rgba(255,255,255,.6);margin-left:4px">\\u00B7 auto-play</span></button>`:''}}
-    <button class="modal-btn ${{hasVoice?'secondary':'primary'}}" onclick="closeWelcome()"><span class="btn-icon">\\uD83D\\uDCD6</span> Read at My Pace</button>
+    ${{hasVoice?`<button class="modal-btn primary" onclick="startListenMode()">Listen Along<span style="font-size:12.5px;color:rgba(255,255,255,.6);margin-left:4px">\\u00B7 auto-play</span></button>`:''}}
+    <button class="modal-btn ${{hasVoice?'secondary':'primary'}}" onclick="closeWelcome()">Read at My Pace</button>
     <div style="font-size:12px;color:var(--c3);margin-top:6px">${{S.length}} slides \\u00B7 Earn XP along the way</div>
   </div>`;
   document.body.appendChild(m);
@@ -1730,22 +1725,18 @@ function rebuildAllSlides(){{
       obj.r=function(){{return `<div id="${{pbid}}" class="an"></div>`}};
       obj.i=function(){{PBUILD(pbid,parts)}};
     }}else if(tp==='milestone'){{
-      const mEmoji=(d.body&&d.body.emoji)||d.emoji||'';
       const mMsg=d.s||(d.body&&d.body.message)||'Great progress! Keep going.';
       obj.r=function(){{
         return `<div style="text-align:center;padding:20px 0">
-          ${{mEmoji?'<div class="an4" style="font-size:48px;margin-bottom:16px">'+mEmoji+'</div>':''}}
           <div class="an" style="font-size:20px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t}}</div>
           <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:320px;margin:0 auto 20px">${{mMsg}}</div>
           <div class="an" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border-radius:20px;padding:8px 20px;font-size:14px;color:#92400E;font-weight:500"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP earned</div>
         </div>`;
       }};
     }}else if(tp==='completion'){{
-      const cEmoji=(d.body&&d.body.emoji)||d.emoji||'';
       const cMsg=d.s||(d.body&&d.body.message)||'You have completed the lesson. Well done!';
       obj.r=function(){{
         return `<div style="text-align:center;padding:20px 0">
-          ${{cEmoji?'<div class="an4" style="font-size:56px;margin-bottom:16px">'+cEmoji+'</div>':''}}
           <div class="an" style="font-size:22px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t||'Lesson Complete!'}}</div>
           <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:340px;margin:0 auto 24px">${{cMsg}}</div>
           <div class="an" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border:2px solid #FCD34D;border-radius:24px;padding:12px 28px;font-size:18px;color:#92400E;font-weight:600"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP</div>
@@ -2155,7 +2146,7 @@ function saveEdit(){{
   if(audioCache)delete audioCache[cur];
 
   closeEdit();
-  rebuildAllSlides();
+  try{{rebuildAllSlides()}}catch(e){{console.error('rebuildAllSlides error:',e);R()}}
 }}
 
 // ── KEYS ──
