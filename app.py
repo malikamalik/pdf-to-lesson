@@ -1318,6 +1318,7 @@ function getELKey(){{return localStorage.getItem('lf_el_key')||''}}
 function getELVoice(){{return localStorage.getItem('lf_el_voice')||'EXAVITQu4vr4xnSDxMaL'}}
 const EL_MODEL='eleven_turbo_v2_5';
 let currentAudio=null,audioCache={{}},audioUnlocked=false,elFailed=false;
+let ttsEpoch=0;
 // Convert pre-generated base64 audio to blob URLs on load
 (function(){{if(typeof PREGEN_AUDIO==='object'){{Object.keys(PREGEN_AUDIO).forEach(k=>{{const b64=PREGEN_AUDIO[k];if(b64){{try{{const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);audioCache[k]=URL.createObjectURL(new Blob([arr],{{type:'audio/mpeg'}}))}}catch(e){{}}}}}})}}}})();
 
@@ -1343,6 +1344,7 @@ async function elFetch(text,idx){{
 }}
 
 function stopAudio(){{
+  ttsEpoch++;
   if(currentAudio){{currentAudio.pause();currentAudio.currentTime=0;currentAudio=null}}
   window.speechSynthesis&&window.speechSynthesis.cancel();
   speaking=false;
@@ -1357,7 +1359,6 @@ function slideHasVideo(idx){{
 }}
 function slideText(s){{
   let text=s.narr||s.t+'. '+(s.s||'');
-  // Auto-append video transition if slide has a video and narration doesn't already mention it
   const idx=S.indexOf(s);
   if(idx>=0&&slideHasVideo(idx)&&!/video|watch|demo|action|look at/i.test(text)){{
     text+=' Now, let\\'s watch the video to see this in action.';
@@ -1369,10 +1370,10 @@ function preCache(from){{
   for(let i=1;i<=3;i++){{const idx=from+i;if(idx<S.length&&!audioCache[idx])elFetch(slideText(S[idx]),idx).catch(()=>{{}})}}
 }}
 
-function onTTSEnd(myCur,s){{
+function onTTSEnd(ep,myCur,s){{
+  if(ep!==ttsEpoch)return;
   speaking=false;currentAudio=null;
-  const stale=()=>!listenMode||cur!==myCur;
-  if(stale())return;
+  if(!listenMode||cur!==myCur)return;
   const interactive=s.t.startsWith('Quick Check')||s.t==='Build a Prompt';
   const hasVideo=document.querySelector('.slide-video');
   if(hasVideo){{
@@ -1380,13 +1381,13 @@ function onTTSEnd(myCur,s){{
     hasVideo.currentTime=0;
     hasVideo.muted=true;
     hasVideo.play().then(()=>{{hasVideo.muted=false}}).catch(()=>{{}});
-    hasVideo.onended=()=>{{if(cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
+    hasVideo.onended=()=>{{if(ep===ttsEpoch&&cur===myCur&&listenMode&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800)}};
     return;
   }}
   if(!interactive&&cur<S.length-1)autoTimer=setTimeout(()=>go(cur+1),800);
 }}
 
-function speakBrowser(text,myCur,s,setTxt){{
+function speakBrowser(text,myCur,s,setTxt,ep){{
   if(!window.speechSynthesis){{setTxt('Error');speaking=false;return}}
   window.speechSynthesis.cancel();
   const utter=new SpeechSynthesisUtterance(text);
@@ -1394,45 +1395,46 @@ function speakBrowser(text,myCur,s,setTxt){{
   const eng=voices.find(v=>v.name.includes('Samantha'))||voices.find(v=>v.lang.startsWith('en')&&v.localService)||voices.find(v=>v.lang.startsWith('en'))||voices[0];
   if(eng)utter.voice=eng;
   utter.rate=0.95;
-  utter.onstart=()=>setTxt('Listening');
-  utter.onend=()=>onTTSEnd(myCur,s);
-  utter.onerror=(e)=>{{if(e.error!=='canceled'){{speaking=false;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}}}};
+  utter.onstart=()=>{{if(ep===ttsEpoch)setTxt('Listening')}};
+  utter.onend=()=>{{if(ep===ttsEpoch)onTTSEnd(ep,myCur,s)}};
+  utter.onerror=(e)=>{{if(e.error!=='canceled'&&ep===ttsEpoch){{speaking=false;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}}}};
   window.speechSynthesis.speak(utter);
-  // Chrome bug: pauses after 15s — keep it alive
   if(!window._ttsKeepAlive){{window._ttsKeepAlive=setInterval(()=>{{if(window.speechSynthesis.speaking){{window.speechSynthesis.pause();window.speechSynthesis.resume()}}}},10000)}}
 }}
 
 async function speakSlide(){{
   stopAudio();
   if(!listenMode)return;
+  const ep=ttsEpoch;
   const myCur=cur,s=S[myCur],text=slideText(s);
   speaking=true;
   const badge=document.getElementById('listen-toggle');
-  const setTxt=(t)=>{{if(badge){{const lt=badge.querySelector('.listen-text');if(lt)lt.textContent=t}}}};
-  const stale=()=>!listenMode||cur!==myCur;
+  const setTxt=(t)=>{{if(ep===ttsEpoch&&badge){{const lt=badge.querySelector('.listen-text');if(lt)lt.textContent=t}}}};
 
   // 1. Check pre-generated audio cache first (free, instant)
   let url=audioCache[myCur]||null;
   // 2. If no cached audio, try ElevenLabs API (if user set their own key)
   if(!url&&!elFailed&&getELKey()){{
     setTxt('Loading...');url=await elFetch(text,myCur);
-    if(stale()){{speaking=false;return}}
+    if(ep!==ttsEpoch)return;
   }}
 
-  // If ElevenLabs worked, play audio
+  // If audio URL available, play it
   if(url){{
+    if(ep!==ttsEpoch)return;
     setTxt('Listening');
     const audio=new Audio(url);
     currentAudio=audio;
-    audio.onended=()=>onTTSEnd(myCur,s);
-    audio.onerror=()=>{{speaking=false;currentAudio=null;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}};
-    try{{await audio.play();preCache(myCur)}}catch(e){{speaking=false;console.warn('Play blocked:',e)}}
+    audio.onended=()=>{{if(ep===ttsEpoch)onTTSEnd(ep,myCur,s)}};
+    audio.onerror=()=>{{if(ep===ttsEpoch){{speaking=false;currentAudio=null;setTxt('Error');setTimeout(()=>setTxt(listenMode?'Listening':'Listen'),2000)}}}};
+    try{{await audio.play();if(ep===ttsEpoch)preCache(myCur)}}catch(e){{if(ep===ttsEpoch)speaking=false}}
     return;
   }}
 
   // Fallback: browser SpeechSynthesis
+  if(ep!==ttsEpoch)return;
   setTxt('Loading...');
-  speakBrowser(text,myCur,s,setTxt);
+  speakBrowser(text,myCur,s,setTxt,ep);
 }}
 
 function toggleListen(){{
@@ -1983,6 +1985,7 @@ function editImgChange(input,imgIdx,bi){{
         S[cur].narr=d2.narration;
       }}
       if(audioCache)delete audioCache[cur];
+      if(typeof PREGEN_AUDIO==='object')delete PREGEN_AUDIO[cur];
     }}
   }};
   reader.readAsDataURL(file);
@@ -2044,6 +2047,7 @@ function editAddImageDone(input){{
         S[cur].narr=d.narration;
       }}
       if(audioCache)delete audioCache[cur];
+      if(typeof PREGEN_AUDIO==='object')delete PREGEN_AUDIO[cur];
     }}
     input.value='';
     closeEdit();
@@ -2144,6 +2148,7 @@ function saveEdit(){{
 
   // Clear audio cache for this slide (narration changed)
   if(audioCache)delete audioCache[cur];
+  if(typeof PREGEN_AUDIO==='object')delete PREGEN_AUDIO[cur];
 
   closeEdit();
   try{{rebuildAllSlides()}}catch(e){{console.error('rebuildAllSlides error:',e);R()}}
