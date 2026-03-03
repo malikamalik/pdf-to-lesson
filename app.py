@@ -1536,13 +1536,10 @@ function doUndo(){{
   // Restore IMAGES
   Object.keys(IMAGES).forEach(k=>delete IMAGES[k]);
   Object.assign(IMAGES,snap.images);
-  // Restore S array display fields
-  snap.sArr.forEach((s,i)=>{{if(S[i]){{S[i].t=s.t;S[i].s=s.s;S[i].narr=s.narr;S[i].cat=s.cat}}}});
-  // Rebuild renderers for content slides
-  slidesData.forEach((d,i)=>{{if((d.type||'content')==='content')S[i].r=function(){{return buildContentSlide(d)}}}});
   // Clear audio cache
   if(audioCache)Object.keys(audioCache).forEach(k=>delete audioCache[k]);
-  R();
+  // Rebuild all slides (restores render functions for all types)
+  rebuildAllSlides();
   updateUndoBtn();
 }}
 function updateUndoBtn(){{
@@ -1702,11 +1699,63 @@ function closeEdit(){{
 }}
 
 function rebuildAllSlides(){{
-  S=slidesData.map((d,i)=>{{
+  S=slidesData.map((d,idx)=>{{
     const tp=d.type||'content';
-    const entry={{t:d.t||'',s:d.s||'',narr:d.narration||'',cat:d.cat||''}};
-    if(tp==='content')entry.r=function(){{return buildContentSlide(d)}};
-    return entry;
+    const obj={{cat:d.cat||'Lesson',t:d.t||'',s:d.s||'',narr:d.narration||''}};
+    if(tp==='content'){{
+      obj.r=function(){{return buildContentSlide(d)}};
+    }}else if(tp==='quiz'){{
+      const qid='q'+idx;
+      const opts=d.options||(d.body&&d.body.options)||[];
+      const ci=d.correct!==undefined?d.correct:(d.body&&d.body.correct!==undefined?d.body.correct:0);
+      const q=d.question||(d.body&&d.body.question)||d.t;
+      const exObj=d.explanations||(d.body&&d.body.explanations)||null;
+      const ex=exObj?(typeof exObj==='string'?exObj:((exObj.correct||'')+(exObj.wrong?' '+exObj.wrong:''))):(d.explanation||(d.body&&d.body.explanation)||'');
+      obj.r=function(){{return `<div id="${{qid}}" class="an"></div>`}};
+      obj.i=function(){{QZ(qid,q,opts,ci,ex,true)}};
+    }}else if(tp==='matching'){{
+      const mid='m'+idx;
+      const pairs=d.pairs||(d.body&&d.body.pairs)||[];
+      obj.r=function(){{return `<div id="${{mid}}" class="an"></div>`}};
+      obj.i=function(){{MATCH(mid,pairs)}};
+    }}else if(tp==='ordering'){{
+      const oid='o'+idx;
+      const items=d.items||(d.body&&d.body.correct_order)||(d.body&&d.body.items)||[];
+      obj.r=function(){{return `<div id="${{oid}}" class="an"></div>`}};
+      obj.i=function(){{ORDER(oid,items)}};
+    }}else if(tp==='prompt_builder'){{
+      const pbid='pb'+idx;
+      const rawParts=d.parts||(d.body&&d.body.parts)||[];
+      const parts=(d.body&&d.body.chips)?[{{l:d.body.instructions||'Build your response',o:d.body.chips}}]:rawParts;
+      obj.r=function(){{return `<div id="${{pbid}}" class="an"></div>`}};
+      obj.i=function(){{PBUILD(pbid,parts)}};
+    }}else if(tp==='milestone'){{
+      const mEmoji=(d.body&&d.body.emoji)||d.emoji||'';
+      const mMsg=d.s||(d.body&&d.body.message)||'Great progress! Keep going.';
+      obj.r=function(){{
+        return `<div style="text-align:center;padding:20px 0">
+          ${{mEmoji?'<div class="an4" style="font-size:48px;margin-bottom:16px">'+mEmoji+'</div>':''}}
+          <div class="an" style="font-size:20px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t}}</div>
+          <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:320px;margin:0 auto 20px">${{mMsg}}</div>
+          <div class="an" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border-radius:20px;padding:8px 20px;font-size:14px;color:#92400E;font-weight:500"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP earned</div>
+        </div>`;
+      }};
+    }}else if(tp==='completion'){{
+      const cEmoji=(d.body&&d.body.emoji)||d.emoji||'';
+      const cMsg=d.s||(d.body&&d.body.message)||'You have completed the lesson. Well done!';
+      obj.r=function(){{
+        return `<div style="text-align:center;padding:20px 0">
+          ${{cEmoji?'<div class="an4" style="font-size:56px;margin-bottom:16px">'+cEmoji+'</div>':''}}
+          <div class="an" style="font-size:22px;font-weight:600;color:var(--c1);margin-bottom:8px">${{d.t||'Lesson Complete!'}}</div>
+          <div class="an" style="font-size:14px;color:var(--c2);line-height:1.6;max-width:340px;margin:0 auto 24px">${{cMsg}}</div>
+          <div class="an" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border:2px solid #FCD34D;border-radius:24px;padding:12px 28px;font-size:18px;color:#92400E;font-weight:600"><span class="coin-icon">${{coinSvg}}</span> ${{xp}} XP</div>
+          <div class="an" style="margin-top:20px;font-size:12.5px;color:var(--c3)">Share your achievement or revisit any slide from the menu</div>
+        </div>`;
+      }};
+    }}else{{
+      obj.r=function(){{return buildContentSlide(d)}};
+    }}
+    return obj;
   }});
   if(cur>=S.length)cur=S.length-1;
   if(cur<0)cur=0;
