@@ -2111,6 +2111,8 @@ function saveEdit(){{
     body.correct=parseInt(document.getElementById('eq-ci').value)||0;
     body.explanations={{correct:document.getElementById('eq-exc').value,wrong:document.getElementById('eq-exw').value}};
     d.body=body;
+    // Sync top-level so rebuild reads updated values
+    d.question=body.question;d.options=body.options;d.correct=body.correct;d.explanations=body.explanations;
   }}else if(tp==='matching'){{
     const body=d.body||{{}};
     const pairsEl=document.getElementById('eq-pairs');
@@ -2121,27 +2123,32 @@ function saveEdit(){{
       }});
     }}
     d.body=body;
+    d.pairs=body.pairs;
   }}else if(tp==='prompt_builder'){{
     const body=d.body||{{}};
     const instrEl=document.getElementById('eq-pb-instr');if(instrEl)body.instructions=instrEl.value;
     const chipsEl=document.getElementById('eq-pb-chips');if(chipsEl)body.chips=chipsEl.value.split('\\n').filter(x=>x.trim());
     const phEl=document.getElementById('eq-pb-ph');if(phEl)body.placeholder=phEl.value;
     d.body=body;
+    d.parts=body.chips?[{{l:body.instructions||'Build your response',o:body.chips}}]:(d.parts||[]);
   }}else if(tp==='ordering'){{
     const body=d.body||{{}};
     const instrEl=document.getElementById('eq-ord-instr');if(instrEl)body.instructions=instrEl.value;
     const itemsEl=document.getElementById('eq-ord-items');if(itemsEl)body.correct_order=itemsEl.value.split('\\n').filter(x=>x.trim());
     d.body=body;
+    d.items=body.correct_order;
   }}else if(tp==='milestone'){{
     const body=d.body||{{}};
     const emojiEl=document.getElementById('eq-ms-emoji');if(emojiEl)body.emoji=emojiEl.value;
     const msgEl=document.getElementById('eq-ms-msg');if(msgEl)body.message=msgEl.value;
     d.body=body;
+    d.emoji=body.emoji;
   }}else if(tp==='completion'){{
     const body=d.body||{{}};
     const taEl=document.getElementById('eq-comp-ta');if(taEl)body.takeaways=taEl.value.split('\\n').filter(x=>x.trim());
     const ctaEl=document.getElementById('eq-comp-cta');if(ctaEl)body.cta=ctaEl.value;
     d.body=body;
+    d.emoji=body.emoji;
   }}
 
   // Clear audio cache for this slide (narration changed)
